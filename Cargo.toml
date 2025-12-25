@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+num = "0.4.3"
+color_space = "0.5.4"
+png = "0.18.0"
+bytemuck = "1.24.0"
+tokio = { version = "1", features = ["full"] }
+env_logger = "0.10"
+wgpu = "27.0.0"
