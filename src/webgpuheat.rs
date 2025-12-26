@@ -12,12 +12,34 @@ pub async fn heatrun(
    let adapter = instance.request_adapter(&Default::default()).await.ok()?;
    let (device, queue) = adapter.request_device(&Default::default()).await.ok()?;
 
-   let shader = device.create_shader_module(wgpu::include_wgsl!("heat.wgsl"));
+   let laplacian_shader = device.create_shader_module(wgpu::include_wgsl!("laplacian.wgsl"));
 
-   let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-       label: Some("Compute Pipeline"),
+   let laplacian_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+       label: Some("Laplacian Pipeline"),
        layout: None,
-       module: &shader,
+       module: &laplacian_shader,
+       entry_point: None,
+       compilation_options: Default::default(),
+       cache: Default::default(),
+   });
+
+   let iterate_shader = device.create_shader_module(wgpu::include_wgsl!("iterate_heat.wgsl"));
+
+   let iterate_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+       label: Some("Iteration Pipeline"),
+       layout: None,
+       module: &iterate_shader,
+       entry_point: None,
+       compilation_options: Default::default(),
+       cache: Default::default(),
+   });
+
+   let buffer_move_shader = device.create_shader_module(wgpu::include_wgsl!("buffer_move.wgsl"));
+
+   let buffer_move_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+       label: Some("Relocation Pipeline"),
+       layout: None,
+       module: &buffer_move_shader,
        entry_point: None,
        compilation_options: Default::default(),
        cache: Default::default(),
@@ -81,13 +103,38 @@ pub async fn heatrun(
        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
    });
 
+   let delta_t_2_buffer = device.create_buffer_init(&BufferInitDescriptor {
+       label: Some("delta_t_2"),
+       contents: bytemuck::cast_slice(&[delta_t/2.]),
+       usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+   });
+
    // THIS DEFINES WHAT IS AVAILABLE TO THE SHADER
    //    RESOURCES ARE IDENTIFIED BY THEIR BIND ID IN @binding(id)
    // note that we can also freely relabel buffers to different bindings
    //    and this effectively relabels them at the wgsl file
-   let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+   let stage_one_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
       label: None,
-      layout: &pipeline.get_bind_group_layout(0),
+      layout: &laplacian_pipeline.get_bind_group_layout(0),
+      entries: &[
+         wgpu::BindGroupEntry {
+               binding: 0,
+               resource: data_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 1,
+               resource: laplacian_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 2,
+               resource: length_buffer.as_entire_binding(),
+         },
+      ],
+   });
+
+   let stage_two_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+      label: None,
+      layout: &iterate_pipeline.get_bind_group_layout(0),
       entries: &[
          wgpu::BindGroupEntry {
                binding: 0,
@@ -103,25 +150,86 @@ pub async fn heatrun(
          },
          wgpu::BindGroupEntry {
                binding: 3,
-               resource: midpoint_laplacian_buffer.as_entire_binding(),
-         },
-         wgpu::BindGroupEntry {
-               binding: 4,
-               resource: output_buffer.as_entire_binding(),
-         },
-         wgpu::BindGroupEntry {
-               binding: 5,
                resource: length_buffer.as_entire_binding(),
          },
          wgpu::BindGroupEntry {
-               binding: 6,
+               binding: 4,
                resource: kappa_buffer.as_entire_binding(),
          },
          wgpu::BindGroupEntry {
-               binding: 7,
+               binding: 5,
+               resource: delta_t_2_buffer.as_entire_binding(),
+         },
+      ],
+   });
+
+   let stage_three_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+      label: None,
+      layout: &laplacian_pipeline.get_bind_group_layout(0),
+      entries: &[
+         wgpu::BindGroupEntry {
+               binding: 0,
+               resource: midpoint_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 1,
+               resource: midpoint_laplacian_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 2,
+               resource: length_buffer.as_entire_binding(),
+         },
+      ],
+   });
+
+   let stage_four_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+      label: None,
+      layout: &iterate_pipeline.get_bind_group_layout(0),
+      entries: &[
+         wgpu::BindGroupEntry {
+               binding: 0,
+               resource: data_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 1,
+               resource: midpoint_laplacian_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 2,
+               resource: output_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 3,
+               resource: length_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 4,
+               resource: kappa_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 5,
                resource: delta_t_buffer.as_entire_binding(),
          },
       ],
+   });
+
+   let stage_five_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+      label: None,
+      layout: &buffer_move_pipeline.get_bind_group_layout(0),
+      entries: &[
+         wgpu::BindGroupEntry {
+            binding: 0,
+            resource: output_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+            binding: 1,
+            resource: data_buffer.as_entire_binding(),
+         },
+         wgpu::BindGroupEntry {
+               binding: 2,
+               resource: length_buffer.as_entire_binding(),
+         }
+      ]
    });
 
    // encoder in the sense that this encodes the job to the gpu's job queue
@@ -140,9 +248,28 @@ pub async fn heatrun(
       // this is also where we define the steps the gpu should take. so far as
       //    i can tell, this is similar to sending an io monad to the gpu
 
-      gputodo.set_pipeline(&pipeline);
-      gputodo.set_bind_group(0, &bind_group, &[]);
+
+      for _ in 0..10000 {
+      gputodo.set_pipeline(&laplacian_pipeline);
+      gputodo.set_bind_group(0, &stage_one_bind_group, &[]);
       gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
+
+      gputodo.set_pipeline(&iterate_pipeline);
+      gputodo.set_bind_group(0, &stage_two_bind_group, &[]);
+      gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
+
+      gputodo.set_pipeline(&laplacian_pipeline);
+      gputodo.set_bind_group(0, &stage_three_bind_group, &[]);
+      gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
+
+      gputodo.set_pipeline(&iterate_pipeline);
+      gputodo.set_bind_group(0, &stage_four_bind_group, &[]);
+      gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
+
+      gputodo.set_pipeline(&buffer_move_pipeline);
+      gputodo.set_bind_group(0, &stage_five_bind_group, &[]);
+      gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
+      }
    }
 
    // one must assume this is also ostensibly thrown into the gpu's todo list monad

@@ -34,14 +34,14 @@ fn makegaussianinitconds(t:f32 ) -> impl Fn(f32,f32) -> f32 {
 #[tokio::main]
 async fn main() {
    env_logger::init();
-   let delta_t = 0.000001;
+   let delta_t = 0.00000001;
    let kappa = 1.;
 
    println!("Hello, world!");
 
    let initialconditions: SquareGrid =
-      //SquareGrid::newbyfunc(255, makemiddleRatTinitconds(0.2, 400.));
-      SquareGrid::newbyfunc(1023, makegaussianinitconds(400.));
+      SquareGrid::newbyfunc(1023, makemiddleRatTinitconds(0.2, 400.));
+      //SquareGrid::newbyfunc(1023, makegaussianinitconds(400.));
 
    let bufferoutput: Vec<f32> = heatrun(
       initialconditions.getarray(),
