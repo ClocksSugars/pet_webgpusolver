@@ -21,7 +21,9 @@ impl SquareGrid {
          ijmax: length,
       }
    }
+   /// not the same as array length, length as in side of a square
    pub fn length(&self) -> usize {self.ijmax}
+   pub fn getarray(&self) -> &Vec<f32> {&self.array}
    pub fn arrayasslice<S>(&self) -> &[S]
    where
       S: AnyBitPattern
@@ -59,7 +61,7 @@ impl SquareGrid {
    pub fn outasheatmap(&self, minT: f64, maxT: f64) -> Vec<u8>
    {
       let diff: f64 = maxT - minT;
-      let mut result: Vec<u8> = Vec::new();
+      let mut result: Vec<u8> = vec![0; self.array.len() * 4];
       let mut rgb: Rgb = Rgb::new(0.,0.,0.);
       let mut zone: f64 = 0.;
       for n in 0..(self.ijmax*self.ijmax) {
@@ -75,11 +77,17 @@ impl SquareGrid {
             1.
          ).to_rgb();
          //println!("{}",zone * 255.);
-         result.push(rgb.r as u8);
-         result.push(rgb.g as u8);
-         result.push(rgb.b as u8);
-         result.push(255 as u8);
+         result[ 4 * n     ] = rgb.r as u8;
+         result[(4 * n)+1  ] = rgb.g as u8;
+         result[(4 * n)+2  ] = rgb.b as u8;
+         result[(4 * n)+3  ] = 255 as u8;
       }
       result
+   }
+
+   pub fn newbytemplate(&self, newdata: Vec<f32>) -> SquareGrid {
+      assert_eq!(self.array.len(),newdata.len());
+
+      SquareGrid { array: newdata, ijmax: self.ijmax }
    }
 }
