@@ -10,4 +10,13 @@ there are a series of tests we must go through to make sure we are doing this ri
    - make sure we can copy initial conditions in and out of buffers freely
    - make sure we can adjust buffers with the shaders in some trivial way, say by moving them all to the left.
    - make sure we can compute a laplacian
-   -
+
+# we did that, new plan
+## get a window open on web
+this turns out to be mostly easy
+
+## get an initial value showing on it
+to do this we'll have to set up the hsv -> rgb shader. my plan is to have this be a compute shader and we'll copy it into the texture buffer when we change it, since we arent exactly aiming for crazy frame rates; this also means we dont have to worry about interpolation stuff when the canvas is stretched, texture buffer tooling handles this for us. the new to do list is:
+   - write a heat map shader
+   - write an initialization thing for the compute pipeline
+   - try to crunch the code down a little with some abstractions
