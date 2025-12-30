@@ -6,30 +6,29 @@ edition = "2024"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-num = "0.4.3"
-color_space = "0.5.4"
+[dependencies]
+anyhow = "1.0"
 png = "0.18.0"
+color_space = "0.5.4"
 bytemuck = "1.24.0"
-tokio = { version = "1", features = ["full"] }
 env_logger = "0.10"
-wgpu = "27.0.0"
+wgpu = { version = "28.0.0"} # "webgl",
 winit = { version = "0.30", features = ["android-native-activity"] }
+log = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-png = "0.18.0"
-color_space = "0.5.4"
-bytemuck = "1.24.0"
-log = "0.4"
-env_logger = "0.10"
 console_error_panic_hook = "0.1.6"
 console_log = "1.0"
-winit = { version = "0.30", features = ["android-native-activity"] }
-wgpu = { version = "27.0.0", features = ["webgl"]}
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4.30"
-web-sys = { version = "0.3", features = [
+wasm-bindgen = "0.2.100"
+wasm-bindgen-futures = "0.4.43"
+web-sys = { version = "0.3.77", features = [
     "Document",
     "Window",
     "Element",
+    "HtmlImageElement",
+    "WebGl2RenderingContext",
+    "CanvasRenderingContext2d"
 ]}
