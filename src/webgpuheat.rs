@@ -8,6 +8,13 @@ use tokio::sync::oneshot::{Receiver, channel};
 #[cfg(target_arch = "wasm32")]
 use std::sync::{Arc, Mutex};
 
+fn gen_print<T>(s: T) where T: core::fmt::Display {
+   #[cfg(target_arch = "wasm32")]
+   log::info!("{}",s);
+   #[cfg(not(target_arch = "wasm32"))]
+   println!("{}",s)
+}
+
 #[derive(Debug)]
 pub enum ComputeRelevantEvent {
    ComputeDoneNowColor,
@@ -160,9 +167,13 @@ impl HeatComputer {
       let iterate_shader = device.create_shader_module(wgpu::include_wgsl!("iterate_heat.wgsl"));
       let buffer_move_shader = device.create_shader_module(wgpu::include_wgsl!("buffer_move.wgsl"));
 
+      gen_print("compute shaders processed");
+
       let laplacian_pipeline = helper_basic_compute_shader(device, Some("Laplacian Pipeline"), &laplacian_shader);
       let iterate_pipeline = helper_basic_compute_shader(device, Some("Iteration Pipeline"), &iterate_shader);
       let buffer_move_pipeline = helper_basic_compute_shader(device, Some("Relocation Pipeline"), &buffer_move_shader);
+
+      gen_print("compute pipelines processed");
 
       let data_buffer = device.create_buffer_init(&BufferInitDescriptor {
          label: Some("data"),
@@ -241,7 +252,7 @@ impl HeatComputer {
       });
       let heat_hue_bind_group = helper_compute_bind_group(
          device, None, &heat_hue_pipeline,
-         &[&data_buffer, &heat_hue_buffer, &vis_minT_buffer, &vis_maxT_buffer]
+         &[&data_buffer, &heat_hue_buffer, &vis_minT_buffer, &vis_maxT_buffer, &length_buffer]
       );
 
 

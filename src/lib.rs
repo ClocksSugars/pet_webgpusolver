@@ -8,6 +8,7 @@ use crate::mathutils::*;
 use crate::squaregrid::*;
 use crate::webgpuheat::*;
 
+use std::fmt::Display;
 use std::sync::Arc;
 use winit::window;
 use winit::{
@@ -24,6 +25,13 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(target_arch = "wasm32")]
 use console_log::*;
+
+fn gen_print<T>(s: T) where T: Display {
+   #[cfg(target_arch = "wasm32")]
+   log::info!("{}",s);
+   #[cfg(not(target_arch = "wasm32"))]
+   println!("{}",s)
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -103,23 +111,32 @@ impl State {
          depth_or_array_layers: 1,
       };
 
-      let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-          #[cfg(not(target_arch = "wasm32"))]
-          backends: wgpu::Backends::PRIMARY,
-          #[cfg(target_arch = "wasm32")]
-          backends: wgpu::Backends::GL,
-          ..Default::default()
-      });
+      let instance = wgpu::Instance::default();
+      // ::new(&wgpu::InstanceDescriptor {
+      //     #[cfg(not(target_arch = "wasm32"))]
+      //     backends: wgpu::Backends::PRIMARY,
+      //     #[cfg(target_arch = "wasm32")]
+      //     backends: wgpu::Backends::GL,
+      //     ..Default::default()
+      // });
+
+      gen_print("instance okay");
+
 
       let surface = instance.create_surface(window.clone()).unwrap();
 
+      gen_print("surface okay");
+
       let adapter = instance
-         .request_adapter(&wgpu::RequestAdapterOptions {
+         .request_adapter(&wgpu::RequestAdapterOptions//::default()).await.ok()?;
+      {
             power_preference: wgpu::PowerPreference::default(),
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
          })
          .await.ok()?;
+
+      gen_print("adapater okay");
 
       let (device, queue) = adapter
          .request_device(&wgpu::DeviceDescriptor {
@@ -129,14 +146,29 @@ impl State {
             // WebGL doesn't support all of wgpu's features, so if
             // we're building for the web we'll have to disable some.
             required_limits: if cfg!(target_arch = "wasm32") {
-               wgpu::Limits::downlevel_webgl2_defaults()
+               adapter.limits()
+               //wgpu::Limits::downlevel_defaults()
+               //wgpu::Limits::downlevel_webgl2_defaults()
             } else {
-               wgpu::Limits::default()
+               wgpu::Limits::defaults()
             },
             memory_hints: Default::default(),
             trace: wgpu::Trace::Off,
          })
          .await.ok()?;
+
+      gen_print("device okay");
+
+      {
+         let adcap = adapter.get_downlevel_capabilities();
+         println!("{:?}",adapter.features());
+         gen_print(adcap.is_webgpu_compliant());
+      }
+
+      fn error_capture(error: wgpu::Error) {
+         gen_print(error.to_string());
+      }
+      device.on_uncaptured_error(Arc::new(error_capture));
 
       let surface_caps = surface.get_capabilities(&adapter);
       let surface_format = surface_caps
@@ -169,7 +201,7 @@ impl State {
          view_formats: &[],
       });
 
-      let default_texture: Vec<u8> = [0,0,0,255].repeat((size.width * size.height) as usize);
+      let default_texture: Vec<u8> = [0,255,0,255].repeat((size.width * size.height) as usize);
 
       queue.write_texture(
           wgpu::TexelCopyTextureInfo {
@@ -311,6 +343,7 @@ impl State {
       });
       // let num_indices = INDICES.len() as u32;
 
+      gen_print("buffers and shaders okay");
 
       let length = 256;
       let heateq = HeatComputer::new(
@@ -322,16 +355,20 @@ impl State {
          &device
       );
 
+      gen_print("heat compute okay");
+
       let delta_t: f32 = 1. / (8. * 1. * length.pow(2) as f32); // safety factor 0.5
       heateq.update_values(&queue, 1., delta_t, 0., 400.);
 
-      // let mut encoder = device.create_command_encoder(&Default::default());
-      // heateq.unsafe_queue_color_job(&mut encoder);
-      // heateq.unsafe_color_to_texture_queue(&mut encoder,&texture);
-      // queue.submit([encoder.finish()]);
+      let mut encoder = device.create_command_encoder(&Default::default());
+      heateq.unsafe_queue_color_job(&mut encoder);
+      heateq.unsafe_color_to_texture_queue(&mut encoder,&texture);
+      queue.submit([encoder.finish()]);
 
-      // #[cfg(not(target_arch = "wasm32"))]
-      // heateq.export_heatmap_buffer(&device, &queue).await;
+      gen_print("heat map job sent");
+
+      #[cfg(not(target_arch = "wasm32"))]
+      heateq.export_heatmap_buffer(&device, &queue).await;
 
       Some(Self {
           surface: surface,
@@ -452,7 +489,7 @@ impl ApplicationHandler<State> for App {
 
       #[cfg(target_arch = "wasm32")]
       {
-         log::info!{"we arrive at app state builder"}
+         log::info!("we arrive at app state builder");
          use wasm_bindgen::JsCast;
          use winit::platform::web::WindowAttributesExtWebSys;
 
@@ -540,6 +577,8 @@ impl ApplicationHandler<State> for App {
    }
 }
 
+
+
 pub fn run() -> Option<()> {
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -559,4 +598,13 @@ pub fn run() -> Option<()> {
     event_loop.run_app(&mut app).ok()?;
 
     Some(())
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(start)]
+pub fn run_web() -> Result<(), wasm_bindgen::JsValue> {
+    console_error_panic_hook::set_once();
+    run().unwrap_throw();
+
+    Ok(())
 }

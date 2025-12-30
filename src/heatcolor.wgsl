@@ -2,6 +2,7 @@
 @group(0) @binding(1) var<storage, read_write> rgba_out: array<u32>;
 @group(0) @binding(2) var<uniform> minT: f32;
 @group(0) @binding(3) var<uniform> maxT: f32;
+@group(0) @binding(4) var<uniform> length: u32;
 
 
 // GOING TO HAVE TO DO SOME EVIL BITWISE MANIPULATION HERE
@@ -12,6 +13,9 @@
 fn main(
    @builtin(global_invocation_id) gid: vec3<u32>
 ) {
+
+   if (gid.x >= length * length) {return;}
+
    let range = clamp((data[gid.x] - minT)/(maxT - minT), 0.0f, 1.0f);
 
    var red: f32 = 0;
@@ -45,7 +49,7 @@ fn main(
    // we use floating point multiplication on f32 representatives of the u8 255 numbers we want
    //    then bitwise clamp them so color bits dont leak into each other. due to evil bit reversed
    //    storage shenanigans the RGBA is actually ABGR
-   var color: u32 = 0xFF000000 // 255 in opacity
+   var color: u32 = 0xFF000000 //0xFF000000 // 255 in opacity
       + (u32(0000000255.0f * red    ) & 0x000000FF)   // 0000000255 is 0x000000FF
       + (u32(0000065280.0f * green  ) & 0x0000FF00)   // 0000065280 is 0x0000FF00
       + (u32(0016711680.0f * blue   ) & 0x00FF0000)   // 0016711680 is 0x00FF0000
