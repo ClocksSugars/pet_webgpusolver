@@ -12,8 +12,9 @@ png = "0.18.0"
 color_space = "0.5.4"
 bytemuck = "1.24.0"
 env_logger = "0.10"
-wgpu = { version = "28.0.0"} # "webgl",
-winit = { version = "0.30", features = ["android-native-activity"] }
+#wgpu = { path = "../wgpu-27.0./wgpu" , features=["webgpu"] } # "webgl",
+wgpu = "27.0.1"
+winit = { version = "0.30.12" } #features = ["android-native-activity"] }
 log = "0.4"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -22,13 +23,15 @@ tokio = { version = "1", features = ["full"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
 console_log = "1.0"
-wasm-bindgen = "0.2.100"
-wasm-bindgen-futures = "0.4.43"
-web-sys = { version = "0.3.77", features = [
+wasm-bindgen = "0.2.106"
+wasm-bindgen-futures = "0.4.56"
+web-sys = { version = "0.3.83", features = [
     "Document",
     "Window",
     "Element",
     "HtmlImageElement",
-    "WebGl2RenderingContext",
-    "CanvasRenderingContext2d"
+    "Element",
+    "HtmlElement",
+    "HtmlCanvasElement",
+    "Node"
 ]}

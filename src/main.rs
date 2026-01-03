@@ -1,5 +1,5 @@
-use pet_webgpusolver::run;
+use pet_webgpusolver::run_desktop;
 
 fn main() {
-   run().unwrap();
+   run_desktop().unwrap();
 }

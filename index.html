@@ -1,0 +1,96 @@
+<!DOCTYPE HTML>
+<html>
+   <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.2/dist/katex.min.css">
+      <link rel="stylesheet" href="https://clockssugars.blog/styles.css">
+      <script defer="" src="https://cdn.jsdelivr.net/npm/katex@0.16.2/dist/katex.min.js"></script>
+      <script>
+         const katexargs = {
+            delimiters: [
+               {left: "$$", right: "$$", display: true},
+               {left: "$", right: "$", display: false},
+               {left: "\begin{equation}", right: "\end{equation}", display: true},
+               {left: "\begin{align}", right: "\end{align}", display: true},
+               {left: "\begin{align*}", right: "\end{align*}", display: true},
+               {left: "\begin{alignat}", right: "\end{alignat}", display: true},
+               {left: "\begin{gather}", right: "\end{gather}", display: true},
+               {left: "\begin{gathered}", right: "\end{gathered}", display: true},
+               {left: "\begin{CD}", right: "\end{CD}", display: true},
+            ], throwOnError : false
+         }
+      </script>
+      <script
+         defer=""
+         src="https://cdn.jsdelivr.net/npm/katex@0.16.2/dist/contrib/auto-render.min.js"
+         onload="renderMathInElement(document.body, katexargs);"
+      ></script>
+      <style>
+         canvas {
+         background-color: black;
+         max-width: 600px;
+         }
+      </style>
+      <title>ClocksSugars' Blog</title>
+   </head>
+   <body>
+      <section class="pagebound">
+         <div id="barone" class="bar-one">
+            <header class="flex-col margin15">
+               <h1 class="marginsmall">ClocksSugars' Blog</h1>
+               <p class="marginless">You have found a secret-section page!</p>
+            </header>
+         </div>
+         <div id="bartwo" class="bar-two">
+            <p class="marginless">
+               <a href="/">Home</a>/secrets/heateq/
+            </p>
+         </div>
+         <h2>$$ \frac{\partial T}{\partial t} = \kappa \nabla^2 T $$</h2>
+         <body id="wasm-example">
+           <canvas id="canvas"></canvas>
+           <p>
+              min_T: <input type="number", id="min_T", value="0.0" required /> (how cold is max blue)
+           </p>
+           <p>
+              max_T: <input type="number", id="max_T", value="400.0" required /> (how hot is max red)
+           </p>
+           <p>
+              $\kappa$: <input type="number", id="kappa", value="1.0" required />
+           </p>
+           <p>
+              $\Delta t$: <input type="number", id="delta_t", value="1.9073486328125e-06" required />
+           </p>
+           <p>
+              <button type="button" id="auto_delta_t"> Auto delta_t from $\kappa$ & $\Delta x$ / $\Delta y$ </button> with safety factor: <input type="number", id="safety_factor", value="0.5", style="width:5em" required />
+           </p>
+           <p>
+              total timesteps: <input type="number", id="max_N", min="1", step="1", value="524288" required />
+           </p>
+           <p>
+              <button type="button" id="auto_max_N"> auto timesteps </button> from max time <input type="number", id="max_time", value="1.0", style="width:5em" required /> & $\Delta t$
+           </p>
+           <p>
+              timesteps per frame: <input type="number", id="N_add", min="1", step="1", value="100" required />
+           </p>
+           <p>
+              <button type="button" id="update_vals"> Send Values to GPU </button>
+              <span style="padding:2em" />
+              <button type="button" id="compute"> Run Compute </button>
+              <span style="padding:2em" />
+              <button type="button" id="break"> Stop Compute </button>
+           </p>
+           <p>
+              $\Delta x$ or $\Delta y$: <input type="number", id="delta_x_y", value="0.00390625" required /> simulates <span id="length_display">256x</span><input type="number", id="length_val", min="1", step="1" value="256" style="width:5em" required /> grid
+           </p>
+           <p>
+              <button type="button" id="send_xy"> Reinitialize Sim with $\Delta x$/$\Delta y$ </button>
+           </p>
+           <script src="./loader.js" type="module" defer></script>
+            <p>
+               <b id="message_receiver">messages from the program will appear here </b>
+            </p>
+      </section>
+   </body>
+</html>

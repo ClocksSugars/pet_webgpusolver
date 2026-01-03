@@ -28,42 +28,46 @@ pub enum ComputeRelevantEvent {
 
 #[allow(non_snake_case)]
 pub struct HeatComputer {
-   length: u32,
-   workgroup_size: u32,
-   laplacian_shader: wgpu::ShaderModule,
-   iterate_shader: wgpu::ShaderModule,
-   buffer_move_shader: wgpu::ShaderModule,
-   laplacian_pipeline: wgpu::ComputePipeline,
-   iterate_pipeline: wgpu::ComputePipeline,
-   buffer_move_pipeline: wgpu::ComputePipeline,
-   data_buffer: wgpu::Buffer,
-   laplacian_buffer: wgpu::Buffer,
-   midpoint_buffer: wgpu::Buffer,
-   midpoint_laplacian_buffer: wgpu::Buffer,
-   output_buffer: wgpu::Buffer,
-   export_buffer: wgpu::Buffer,
-   length_buffer: wgpu::Buffer,
-   kappa_buffer: wgpu::Buffer,
-   delta_t_buffer: wgpu::Buffer,
-   delta_t_2_buffer: wgpu::Buffer,
+   pub iteration_quantity: u32,
+   pub length: u32,
+   pub workgroup_size: u32,
+   pub fix_boundary_conditions_shdr: wgpu::ShaderModule,
+   pub laplacian_shader: wgpu::ShaderModule,
+   pub iterate_shader: wgpu::ShaderModule,
+   pub buffer_move_shader: wgpu::ShaderModule,
+   pub fix_boundary_conditions_ppln: wgpu::ComputePipeline,
+   pub laplacian_pipeline: wgpu::ComputePipeline,
+   pub iterate_pipeline: wgpu::ComputePipeline,
+   pub buffer_move_pipeline: wgpu::ComputePipeline,
+   pub data_buffer: wgpu::Buffer,
+   pub laplacian_buffer: wgpu::Buffer,
+   pub midpoint_buffer: wgpu::Buffer,
+   pub midpoint_laplacian_buffer: wgpu::Buffer,
+   pub output_buffer: wgpu::Buffer,
+   pub export_buffer: wgpu::Buffer,
+   pub length_buffer: wgpu::Buffer,
+   pub kappa_buffer: wgpu::Buffer,
+   pub delta_t_buffer: wgpu::Buffer,
+   pub delta_t_2_buffer: wgpu::Buffer,
 
    // When i have more confidence, these should be an vec of 'steps'
    //    although that may require the above pipelines to be changed to
    //    Arc<wgpu::Buffer> types.
-   stage_one_bind_group: wgpu::BindGroup,
-   stage_two_bind_group: wgpu::BindGroup,
-   stage_three_bind_group: wgpu::BindGroup,
-   stage_four_bind_group: wgpu::BindGroup,
-   stage_five_bind_group: wgpu::BindGroup,
+   pub fix_boundary_conditions_bg: wgpu::BindGroup,
+   pub stage_one_bind_group: wgpu::BindGroup,
+   pub stage_two_bind_group: wgpu::BindGroup,
+   pub stage_three_bind_group: wgpu::BindGroup,
+   pub stage_four_bind_group: wgpu::BindGroup,
+   pub stage_five_bind_group: wgpu::BindGroup,
 
-   vis_minT_buffer: wgpu::Buffer,
-   vis_maxT_buffer: wgpu::Buffer,
-   heat_map_buffer: wgpu::Buffer,
-   heat_hue_shader: wgpu::ShaderModule,
-   heat_hue_pipeline: wgpu::ComputePipeline,
-   heat_hue_bind_group: wgpu::BindGroup,
+   pub vis_minT_buffer: wgpu::Buffer,
+   pub vis_maxT_buffer: wgpu::Buffer,
+   pub heat_map_buffer: wgpu::Buffer,
+   pub heat_hue_shader: wgpu::ShaderModule,
+   pub heat_hue_pipeline: wgpu::ComputePipeline,
+   pub heat_hue_bind_group: wgpu::BindGroup,
 
-   workgroup_quantity: u32,
+   pub workgroup_quantity: u32,
 
 
    // NOTE: my understanding is that wasm will not start threads in the same way rust will.
@@ -72,12 +76,12 @@ pub struct HeatComputer {
    //    the rust-compiler borrow checker.
 
    #[cfg(not(target_arch = "wasm32"))]
-   progress: Option<
+   pub progress: Option<
       (ComputeRelevantEvent, Receiver<ComputeRelevantEvent>)
    >,
 
    #[cfg(target_arch = "wasm32")]
-   progress: Arc<
+   pub progress: Arc<
       Mutex<
          Option<ComputeRelevantEvent>
       >
@@ -166,12 +170,14 @@ impl HeatComputer {
       let laplacian_shader = device.create_shader_module(wgpu::include_wgsl!("laplacian.wgsl"));
       let iterate_shader = device.create_shader_module(wgpu::include_wgsl!("iterate_heat.wgsl"));
       let buffer_move_shader = device.create_shader_module(wgpu::include_wgsl!("buffer_move.wgsl"));
+      let fix_boundary_conditions_shdr = device.create_shader_module(wgpu::include_wgsl!("boundary_cond.wgsl"));
 
       gen_print("compute shaders processed");
 
       let laplacian_pipeline = helper_basic_compute_shader(device, Some("Laplacian Pipeline"), &laplacian_shader);
       let iterate_pipeline = helper_basic_compute_shader(device, Some("Iteration Pipeline"), &iterate_shader);
       let buffer_move_pipeline = helper_basic_compute_shader(device, Some("Relocation Pipeline"), &buffer_move_shader);
+      let fix_boundary_conditions_ppln = helper_basic_compute_shader(device, Some("Boundary Conds Pipeline"), &fix_boundary_conditions_shdr);
 
       gen_print("compute pipelines processed");
 
@@ -217,22 +223,35 @@ impl HeatComputer {
 
       // if pipelines are like gpu function calls, this is where we identify our variables in address space.
       // in that sense we may freely put in different buffers like swapping arguments to a function
+
+      // shader that fixes the insulating boundary conditions. we want to apply this before we compute
+      //    the laplacian since it effectively fixes the laplacian equal to zero on the boundary.
+      let fix_boundary_conditions_bg = helper_compute_bind_group(
+         device, None, &fix_boundary_conditions_ppln,
+         &[&data_buffer, &length_buffer]
+      );
+
+      // compute laplacian of data
       let stage_one_bind_group = helper_compute_bind_group(
          device, None, &laplacian_pipeline,
          &[&data_buffer, &laplacian_buffer, &length_buffer]
       );
+      // compute RK2 midpoint using laplacian
       let stage_two_bind_group = helper_compute_bind_group(
          device, None, &iterate_pipeline,
          &[&data_buffer, &laplacian_buffer, &midpoint_buffer, &length_buffer, &kappa_buffer, &delta_t_2_buffer]
       );
+      // reuse laplacian pipeline to compute laplacian using midpoint buffer
       let stage_three_bind_group = helper_compute_bind_group(
          device, None, &laplacian_pipeline,
          &[&midpoint_buffer, &midpoint_laplacian_buffer, &length_buffer]
       );
+      // reuse RK2 midpoint pipeline but with delta_t instead of delta_t/2 to compute RK2 result
       let stage_four_bind_group = helper_compute_bind_group(
          device, None, &iterate_pipeline,
          &[&data_buffer, &midpoint_laplacian_buffer, &output_buffer, &length_buffer, &kappa_buffer, &delta_t_buffer]
       );
+      // send output buffer to data buffer so we can repeat this
       let stage_five_bind_group = helper_compute_bind_group(
          device, None, &buffer_move_pipeline,
          &[&output_buffer, &data_buffer, &length_buffer]
@@ -260,9 +279,11 @@ impl HeatComputer {
       Self {
          length,
          workgroup_size: 64,
+         fix_boundary_conditions_shdr,
          laplacian_shader,
          iterate_shader,
          buffer_move_shader,
+         fix_boundary_conditions_ppln,
          laplacian_pipeline,
          iterate_pipeline,
          buffer_move_pipeline,
@@ -277,6 +298,7 @@ impl HeatComputer {
          delta_t_buffer,
          delta_t_2_buffer,
 
+         fix_boundary_conditions_bg,
          stage_one_bind_group,
          stage_two_bind_group,
          stage_three_bind_group,
@@ -290,6 +312,8 @@ impl HeatComputer {
          heat_hue_pipeline,
          heat_hue_bind_group,
 
+         iteration_quantity: 100,
+
          workgroup_quantity: initial_data.len().div_ceil(64) as u32,
 
          #[cfg(not(target_arch = "wasm32"))]
@@ -301,13 +325,15 @@ impl HeatComputer {
    }
 
    pub fn update_values(
-      &self,
+      &mut self,
       queue: &wgpu::Queue,
+      n_times: u32,
       kappa: f32,
       delta_t: f32,
       #[allow(non_snake_case)] minT: f32,
       #[allow(non_snake_case)] maxT: f32
    ) {
+      self.iteration_quantity = n_times;
       queue.write_buffer(&self.kappa_buffer, 0, cast_slice(&[kappa]));
       queue.write_buffer(&self.delta_t_buffer, 0, cast_slice(&[delta_t.clone()]));
       queue.write_buffer(&self.delta_t_2_buffer, 0, cast_slice(&[delta_t / 2.0]));
@@ -319,7 +345,6 @@ impl HeatComputer {
       &mut self,
       queue: &wgpu::Queue,
       device: &wgpu::Device,
-      n_times: usize,
    ) {
       let mut encoder = device.create_command_encoder(&Default::default());
 
@@ -332,8 +357,13 @@ impl HeatComputer {
          // this is also where we define the steps the gpu should take. so far as
          //    i can tell, this is similar to sending an io monad to the gpu
 
+         let boundary_conds_wg_quant = (self.length*4).div_ceil(self.workgroup_size);
 
-         for _ in 0..n_times {
+         for _ in 0..self.iteration_quantity {
+         gputodo.set_pipeline(&self.fix_boundary_conditions_ppln);
+         gputodo.set_bind_group(0, &self.fix_boundary_conditions_bg, &[]);
+         gputodo.dispatch_workgroups(boundary_conds_wg_quant, 1 , 1);
+
          gputodo.set_pipeline(&self.laplacian_pipeline);
          gputodo.set_bind_group(0, &self.stage_one_bind_group, &[]);
          gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
