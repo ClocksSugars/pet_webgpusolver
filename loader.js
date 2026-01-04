@@ -47,8 +47,9 @@ document.getElementById("N_add").addEventListener("change", (event) => {
 
 
 import {
-   run_a_compute_loop,
-   render_a_frame
+   run_a_compute_iter,
+   render_a_frame,
+   update_values,
 } from "./pkg/pet_webgpusolver.js";
 
 var max_N = 52488;
@@ -57,7 +58,7 @@ var current_N = 0;
 var stop_compute = false;
 
 function run_compute() {
-   run_a_compute_loop();
+   run_a_compute_iter();
    render_a_frame();
 
    current_N = current_N + N_add
@@ -73,4 +74,14 @@ document.getElementById("compute").addEventListener("click", (event) => {
 
 document.getElementById("break").addEventListener("click", (event) => {
    stop_compute = true;
+})
+
+document.getElementById("update_vals").addEventListener("click", (event) => {
+   update_values(
+      document.getElementById("N_add").value,
+      document.getElementById("kappa").value,
+      document.getElementById("delta_t").value,
+      document.getElementById("min_T").value,
+      document.getElementById("max_T").value,
+   )
 })

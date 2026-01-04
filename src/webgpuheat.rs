@@ -339,11 +339,14 @@ impl HeatComputer {
       queue.write_buffer(&self.delta_t_2_buffer, 0, cast_slice(&[delta_t / 2.0]));
       queue.write_buffer(&self.vis_minT_buffer, 0, cast_slice(&[minT]));
       queue.write_buffer(&self.vis_maxT_buffer, 0, cast_slice(&[maxT]));
+      queue.submit([]);
+
+
    }
 
    pub fn send_compute_job(
       &mut self,
-      queue: &wgpu::Queue,
+      pending_queue: &mut Vec<wgpu::CommandBuffer>,
       device: &wgpu::Device,
    ) {
       let mut encoder = device.create_command_encoder(&Default::default());
@@ -396,26 +399,27 @@ impl HeatComputer {
          temp_ref
       };
 
-      queue.submit([encoder.finish()]);
+      pending_queue.push(encoder.finish())
+      //queue.submit([encoder.finish()]);
 
-      #[cfg(not(target_arch = "wasm32"))]
-      {
-         let (sender,receiver) = channel();
+      // #[cfg(not(target_arch = "wasm32"))]
+      // {
+      //    let (sender,receiver) = channel();
 
-         queue.on_submitted_work_done(move || sender.send( ComputeRelevantEvent::ComputeDoneNowColor ).unwrap());
-         self.progress = Some((ComputeRelevantEvent::ComputeIsWorking, receiver));
-      }
+      //    queue.on_submitted_work_done(move || sender.send( ComputeRelevantEvent::ComputeDoneNowColor ).unwrap());
+      //    self.progress = Some((ComputeRelevantEvent::ComputeIsWorking, receiver));
+      // }
 
-      #[cfg(target_arch = "wasm32")]
-      queue.on_submitted_work_done(move || {
-         let mut progress = progress_ref.lock().unwrap();
-         *progress = Some(ComputeRelevantEvent::ComputeDoneNowColor);
-      });
+      // #[cfg(target_arch = "wasm32")]
+      // queue.on_submitted_work_done(move || {
+      //    let mut progress = progress_ref.lock().unwrap();
+      //    *progress = Some(ComputeRelevantEvent::ComputeDoneNowColor);
+      // });
    }
 
    pub fn send_color_job(
       &mut self,
-      queue: &wgpu::Queue,
+      pending_queue: &mut Vec<wgpu::CommandBuffer>,
       device: &wgpu::Device,
    ) {
       let mut encoder = device.create_command_encoder(&Default::default());
@@ -438,21 +442,22 @@ impl HeatComputer {
          temp_ref
       };
 
-      queue.submit([encoder.finish()]);
+      pending_queue.push(encoder.finish())
+      //queue.submit([encoder.finish()]);
 
-      #[cfg(not(target_arch = "wasm32"))]
-      {
-         let (sender,receiver) = channel();
+      // #[cfg(not(target_arch = "wasm32"))]
+      // {
+      //    let (sender,receiver) = channel();
 
-         queue.on_submitted_work_done(move || sender.send( ComputeRelevantEvent::ColorIsDone ).unwrap());
-         self.progress = Some((ComputeRelevantEvent::ColorIsWorking, receiver));
-      }
+      //    queue.on_submitted_work_done(move || sender.send( ComputeRelevantEvent::ColorIsDone ).unwrap());
+      //    self.progress = Some((ComputeRelevantEvent::ColorIsWorking, receiver));
+      // }
 
-      #[cfg(target_arch = "wasm32")]
-      queue.on_submitted_work_done(move || {
-         let mut progress = progress_ref.lock().unwrap();
-         *progress = Some(ComputeRelevantEvent::ColorIsDone);
-      });
+      // #[cfg(target_arch = "wasm32")]
+      // queue.on_submitted_work_done(move || {
+      //    let mut progress = progress_ref.lock().unwrap();
+      //    *progress = Some(ComputeRelevantEvent::ColorIsDone);
+      // });
    }
 
    pub fn unsafe_queue_color_job(
@@ -468,7 +473,7 @@ impl HeatComputer {
 
    pub fn color_to_texture(
       &mut self,
-      queue: &wgpu::Queue,
+      pending_queue: &mut Vec<wgpu::CommandBuffer>,
       device: &wgpu::Device,
       textureBuffer: &wgpu::Texture,
    ) {
@@ -501,21 +506,21 @@ impl HeatComputer {
          temp_ref
       };
 
-      queue.submit([encoder.finish()]);
+      pending_queue.push(encoder.finish());
 
-      #[cfg(not(target_arch = "wasm32"))]
-      {
-         let (sender,receiver) = channel();
+      // #[cfg(not(target_arch = "wasm32"))]
+      // {
+      //    let (sender,receiver) = channel();
 
-         queue.on_submitted_work_done(move || sender.send( ComputeRelevantEvent::ComputeDoneNowColor ).unwrap());
-         self.progress = Some((ComputeRelevantEvent::ColorIsCopying ,receiver));
-      }
+      //    queue.on_submitted_work_done(move || sender.send( ComputeRelevantEvent::ComputeDoneNowColor ).unwrap());
+      //    self.progress = Some((ComputeRelevantEvent::ColorIsCopying ,receiver));
+      // }
 
-      #[cfg(target_arch = "wasm32")]
-      queue.on_submitted_work_done(move || {
-         let mut progress = progress_ref.lock().unwrap();
-         *progress = None;
-      });
+      // #[cfg(target_arch = "wasm32")]
+      // queue.on_submitted_work_done(move || {
+      //    let mut progress = progress_ref.lock().unwrap();
+      //    *progress = None;
+      // });
    }
 
    pub fn unsafe_color_to_texture_queue(

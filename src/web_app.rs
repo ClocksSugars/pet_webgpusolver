@@ -1,3 +1,4 @@
+use std::future::pending;
 use std::sync::{Mutex, OnceLock};
 use std::cell::{RefCell};
 
@@ -38,15 +39,32 @@ pub fn update_values(
       WebApp::Idle(state) => state
    };
 
+   // log::info!("received values, n_times looks like {:?}", bytemuck::cast_slice::<u32,u8>(&[n_times]));
+   // log::info!("and n_times is {:?}", &n_times);
+   // log::info!("received values, kappa looks like {:?}", bytemuck::cast_slice::<f32,u8>(&[kappa]));
+   // log::info!("received values, delta_t looks like {:?}", bytemuck::cast_slice::<f32,u8>(&[delta_t]));
+   // log::info!("received values, min_T looks like {:?}", bytemuck::cast_slice::<f32,u8>(&[minT]));
+   // log::info!("received values, max_T looks like {:?}", bytemuck::cast_slice::<f32,u8>(&[maxT]));
+
    state.heateq.update_values(&state.queue, n_times, kappa, delta_t, minT, maxT);
 
+   let result = state.device.poll(wgpu::PollType::wait_indefinitely()).map_err( |e|
+      {
+         log::info!("failed to update values with {}", e);
+         JsValue::from_str(&format!("failed to update values with {}", e))
+      }
+   );
+
    THE_STATE.set(WebApp::Idle(state));
+
+   result?;
+   log::info!("write succeeded");
 
    Ok(())
 }
 
 #[wasm_bindgen]
-pub fn run_a_compute_loop() -> Result<(), JsValue> {
+pub fn run_a_compute_iter() -> Result<(), JsValue> {
 
    let globalstate = THE_STATE.replace(WebApp::Uninitialized);
 
@@ -58,9 +76,13 @@ pub fn run_a_compute_loop() -> Result<(), JsValue> {
       WebApp::Idle(state) => state
    };
 
-   state.heateq.send_compute_job(&state.queue,&state.device);
-   state.heateq.send_color_job(&state.queue,&state.device);
-   state.heateq.color_to_texture(&state.queue,&state.device,&state.texture_buffer);
+   let mut pending_queue = state.pending_queue.replace(vec![]);
+
+   state.heateq.send_compute_job(&mut pending_queue,&state.device);
+   state.heateq.send_color_job(&mut pending_queue,&state.device);
+   state.heateq.color_to_texture(&mut pending_queue,&state.device,&state.texture_buffer);
+
+   _ = state.pending_queue.replace(pending_queue);
 
    // let result = state.device.poll(wgpu::PollType::wait_indefinitely())
    //    .map_err(|e| JsValue::from_str(&format!("gpu failure: {}",e)));

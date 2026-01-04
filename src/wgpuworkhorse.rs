@@ -102,6 +102,7 @@ pub struct WgpuState {
    pub texture_view: wgpu::TextureView,
    pub texture_sampler: wgpu::Sampler,
    pub heateq: HeatComputer,
+   pub pending_queue: std::cell::Cell<Vec<wgpu::CommandBuffer>>
 }
 
 impl WgpuState {
@@ -109,7 +110,17 @@ impl WgpuState {
       #[cfg(target_arch = "wasm32")]
       valid_pre_surface: web_sys::HtmlCanvasElement,
       #[cfg(not(target_arch = "wasm32"))]
-      valid_pre_surface: Arc<Window>
+      valid_pre_surface: Arc<Window>,
+   ) -> anyhow::Result<Self> {
+      Self::new_with(valid_pre_surface, 256).await
+   }
+
+   pub async fn new_with(
+      #[cfg(target_arch = "wasm32")]
+      valid_pre_surface: web_sys::HtmlCanvasElement,
+      #[cfg(not(target_arch = "wasm32"))]
+      valid_pre_surface: Arc<Window>,
+      length: u32,
    ) -> anyhow::Result<Self>
    {
       gen_print("wgpu state builder");
@@ -136,8 +147,8 @@ impl WgpuState {
       gen_print("surface okay");
 
       let size = wgpu::Extent3d {
-         width: 256,
-         height: 256,
+         width: length,
+         height: length,
          depth_or_array_layers: 1,
       };
 
@@ -173,16 +184,6 @@ impl WgpuState {
          .await?;
 
       gen_print("device okay");
-
-      {
-         // println!("VULKAN backends: {:?}",instance.enumerate_adapters(wgpu::Backends::VULKAN).await);
-         // println!("DX12 backends: {:?}",instance.enumerate_adapters(wgpu::Backends::DX12).await);
-         // println!("GL backends: {:?}",instance.enumerate_adapters(wgpu::Backends::GL).await);
-         // println!("BROWSER_WEBGPU backends: {:?}",instance.enumerate_adapters(wgpu::Backends::BROWSER_WEBGPU).await);
-         let adcap = adapter.get_downlevel_capabilities();
-         //println!("{:?}",adapter.features());
-         gen_print(adcap.is_webgpu_compliant());
-      }
 
       fn error_capture(error: wgpu::Error) {
          gen_print(error.to_string());
@@ -368,11 +369,10 @@ impl WgpuState {
 
       gen_print("buffers and shaders okay");
 
-      let length = 256;
       let mut heateq = HeatComputer::new(
          SquareGrid::newbyfunc(
             length as usize,
-            makemiddleRatTinitconds(0.2, 1000.)
+            makemiddleRatTinitconds(0.2, 400.)
          ).getarray(),
          length,
          &device
@@ -411,6 +411,7 @@ impl WgpuState {
           texture_view: view,
           texture_sampler: sampler,
           heateq: heateq,
+          pending_queue: std::cell::Cell::new(Vec::new())
       })
    }
 
@@ -459,7 +460,10 @@ impl WgpuState {
           render_pass.draw_indexed(0..6, 0, 0..1);
       };
 
-      self.queue.submit([encoder.finish()]);
+      let mut pending_queue =  self.pending_queue.replace(Vec::new());
+      pending_queue.push(encoder.finish());
+      self.queue.submit(pending_queue.into_boxed_slice());
+
       output.present();
 
       Ok(())

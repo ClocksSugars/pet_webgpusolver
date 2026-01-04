@@ -5,9 +5,10 @@ use winit::{
     application::ApplicationHandler,
     event::*,
     event_loop::{ActiveEventLoop, EventLoop},
-    keyboard::{KeyCode, PhysicalKey},
+    keyboard::{Key, KeyCode, PhysicalKey},
     window::Window
 };
+use tokio::sync::*;
 use wgpu::util::{DeviceExt};
 use crate::wgpuworkhorse;
 
@@ -28,19 +29,28 @@ fn gen_print<T>(s: T) where T: Display {
    println!("{}",s)
 }
 
-
-
-
 pub struct State {
    wgpuworkhorse: wgpuworkhorse::WgpuState,
+   cli_state: std::string::String,
+   compute_on_render: bool,
+   //end_cli_sender: oneshot::Sender<()>,
+   //cli_receiver: mpsc::Receiver<Vec<char>>,
    window: Arc<Window>,
 }
 
 impl State {
    pub async fn new(valid_pre_surface: Arc<Window>) -> anyhow::Result<Self>{
       let pony = wgpuworkhorse::WgpuState::new(valid_pre_surface.clone()).await?;
+
+      // end_cli_receiver: oneshot::Receiver<()>,
+      // cli_sender: mpsc::Sender<Vec<char>>
+
+      print!("Input: ");
+
       Ok(Self {
          wgpuworkhorse: pony,
+         cli_state: std::string::String::new(),
+         compute_on_render: false,
          window: valid_pre_surface
       })
    }
@@ -57,9 +67,26 @@ impl State {
        }
    }
 
-   fn handle_key(&mut self, event_loop: &ActiveEventLoop, key: KeyCode, pressed: bool) {
+   fn handle_key(&mut self, event_loop: &ActiveEventLoop, key: Result<Key,KeyCode>, pressed: bool) {
        match (key, pressed) {
-           (KeyCode::Escape, true) => event_loop.exit(),
+           (Err(KeyCode::Escape), true) => event_loop.exit(),
+           (Err(KeyCode::Backspace), true) => {
+               self.cli_state = std::string::String::new();
+               },
+           (Err(KeyCode::Enter), true) => {
+              self.do_instruction();
+              self.cli_state = std::string::String::new();
+           },
+           (Err(KeyCode::Space), true) => {
+              self.cli_state.push(' ');
+              println!("Input: {}",self.cli_state);
+           },
+           (Ok(Key::Character(presumably_letter)), true) => {
+              let temp: String = presumably_letter.chars().collect();
+              self.cli_state.push_str(&temp);
+              //println!("{}",temp);
+              println!("Input: {}",self.cli_state);
+           }
            _ => {}
        }
    }
@@ -69,9 +96,56 @@ impl State {
    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
       self.window.request_redraw();
 
+      let mut pending_queue = self.wgpuworkhorse.pending_queue.replace(vec![]);
+
+      if self.compute_on_render {
+         self.wgpuworkhorse.heateq.send_compute_job(&mut pending_queue,&self.wgpuworkhorse.device);
+         self.wgpuworkhorse.heateq.send_color_job(&mut pending_queue,&self.wgpuworkhorse.device);
+         self.wgpuworkhorse.heateq.color_to_texture(&mut pending_queue,&self.wgpuworkhorse.device,&self.wgpuworkhorse.texture_buffer);
+      }
+
+      _ = self.wgpuworkhorse.pending_queue.replace(pending_queue);
+
       self.wgpuworkhorse.render()?;
 
       Ok(())
+   }
+
+   fn do_instruction(&mut self) {
+      let mut instruction = self.cli_state.split(' ');
+      println!("");
+
+      let first_word = match instruction.next() {
+         Some("start") => {self.compute_on_render = true; return}
+         Some("stop") => {self.compute_on_render = false; return}
+         Some(x) => x,
+         None => {println!("received empty command"); return}
+      };
+
+      if (first_word == "set") {
+         match (instruction.next(), instruction.next()) {
+            (Some("max_T"), Some(x)) => {
+                  if let Ok(max_T) = x.parse::<f32>() {
+                     self.wgpuworkhorse.queue.write_buffer(
+                        &self.wgpuworkhorse.heateq.vis_maxT_buffer, 0, bytemuck::cast_slice(&[max_T]));
+                     self.wgpuworkhorse.queue.submit([]);
+                  }
+               }
+            (Some("kappa"), Some(x)) => {
+               if let Ok(kappa) = x.parse::<f32>() {
+                  self.wgpuworkhorse.queue.write_buffer(
+                     &self.wgpuworkhorse.heateq.kappa_buffer, 0, bytemuck::cast_slice(&[kappa]));
+                  self.wgpuworkhorse.queue.submit([]);
+               }
+            }
+            (Some("iter_quant"), Some(x)) => {
+               if let Ok(iter_quant) = x.parse::<u32>() {
+                  self.wgpuworkhorse.heateq.iteration_quantity = iter_quant;
+               }
+            }
+            _ => {return;}
+         }
+      }
    }
 }
 
@@ -106,7 +180,7 @@ impl ApplicationHandler<State> for App {
       let temprt = tokio::runtime::Runtime::new()
          .expect("tokio runtime creation failed");
       self.state = temprt.block_on(State::new(window)).ok();
-      gen_print("state creation finished");
+      //gen_print("state creation finished");
 
    }
 
@@ -160,11 +234,18 @@ impl ApplicationHandler<State> for App {
                event:
                    KeyEvent {
                        physical_key: PhysicalKey::Code(code),
+                       logical_key: logical_key,
                        state: key_state,
                        ..
                    },
                ..
-           } => state.handle_key(event_loop, code, key_state.is_pressed()),
+           } => match code {
+              KeyCode::Escape => {state.handle_key(event_loop, Err(code), key_state.is_pressed());}
+              KeyCode::Enter =>  {state.handle_key(event_loop, Err(code), key_state.is_pressed());}
+              KeyCode::Backspace =>  {state.handle_key(event_loop, Err(code), key_state.is_pressed());}
+              KeyCode::Space =>  {state.handle_key(event_loop, Err(code), key_state.is_pressed());}
+              _ =>  {state.handle_key(event_loop, Ok(logical_key), key_state.is_pressed());}
+           },
            _ => {}
        }
    }
