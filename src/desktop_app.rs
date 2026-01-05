@@ -104,6 +104,12 @@ impl State {
          self.wgpuworkhorse.heateq.color_to_texture(&mut pending_queue,&self.wgpuworkhorse.device,&self.wgpuworkhorse.texture_buffer);
       }
 
+      let mut encoder = self.wgpuworkhorse.device.create_command_encoder(&Default::default());
+
+      encoder.copy_buffer_to_buffer(&self.wgpuworkhorse.heateq.output_buffer, 0,
+         &self.wgpuworkhorse.heateq.export_buffer, 0, self.wgpuworkhorse.heateq.output_buffer.size());
+      pending_queue.push(encoder.finish());
+
       _ = self.wgpuworkhorse.pending_queue.replace(pending_queue);
 
       self.wgpuworkhorse.render()?;

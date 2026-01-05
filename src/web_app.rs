@@ -19,6 +19,16 @@ thread_local! {
    pub static THE_STATE : RefCell<WebApp> = RefCell::new(WebApp::Uninitialized);
 }
 
+thread_local! {
+   pub static INTERNAL_MESSAGE : RefCell<
+      Option<
+         tokio::sync::oneshot::Receiver<
+            Result<(), wgpu::BufferAsyncError>
+         >
+      >
+   > = RefCell::new(None);
+}
+
 // Now expose all wgpu heat equation and rendering functionality to javascript
 #[wasm_bindgen]
 pub fn update_values(
@@ -120,3 +130,99 @@ pub fn render_a_frame() -> Result<(), JsValue> {
 }
 
 // implement this https://donatstudios.com/Read-User-Files-With-Go-WASM
+
+#[wasm_bindgen]
+pub fn send_output_to_export() -> Result<(), JsValue> {
+   let globalstate = THE_STATE.replace(WebApp::Uninitialized);
+   let mut state: WgpuState = match globalstate {
+      WebApp::Uninitialized => {
+         log::info!("Can not do! Uninitialized");
+         return Err(JsValue::from_str("Can not do! Uninitialized"));
+      }
+      WebApp::Idle(state) => state
+   };
+
+   let mut pending_queue = state.pending_queue.replace(vec![]);
+   let mut encoder = state.device.create_command_encoder(&Default::default());
+
+   state.heateq.export_buffer.unmap();
+   let (sender,receiver) = tokio::sync::oneshot::channel();
+   encoder.copy_buffer_to_buffer(&state.heateq.output_buffer, 0, &state.heateq.export_buffer, 0, state.heateq.heat_map_buffer.size());
+   encoder.map_buffer_on_submit(&state.heateq.export_buffer, wgpu::MapMode::Read, ..,
+      move |result| {
+         match sender.send(result) {
+            Ok(()) => {}
+            Err(x) => log::info!("sender failed to send, with message {:?}",x)
+         }
+      });
+   pending_queue.push(encoder.finish());
+   INTERNAL_MESSAGE.set(Some(receiver));
+
+   _ = state.pending_queue.replace(pending_queue);
+   THE_STATE.set(WebApp::Idle(state));
+   Ok(())
+}
+
+// #[wasm_bindgen]
+// pub fn setup_temp_receiver() -> Result<(), JsValue> {
+//    let globalstate = THE_STATE.replace(WebApp::Uninitialized);
+//    let mut state: WgpuState = match globalstate {
+//       WebApp::Uninitialized => {
+//          log::info!("Can not do! Uninitialized");
+//          return Err(JsValue::from_str("Can not do! Uninitialized"));
+//       }
+//       WebApp::Idle(state) => state
+//    };
+
+//    let (sender,receiver) = tokio::sync::oneshot::channel();
+
+//    state.heateq.export_buffer.map_async(wgpu::MapMode::Read, ..,
+//       move |result| sender.send(result).unwrap());
+
+//    state.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+
+//    THE_STATE.set(WebApp::Idle(state));
+//    INTERNAL_MESSAGE.set(Some(receiver));
+//    Ok(())
+// }
+
+#[wasm_bindgen]
+pub fn is_receiver_ready() -> Result<bool, JsValue> {
+   let Some(mut receiver) = INTERNAL_MESSAGE.replace(None) else {return Ok(false)};
+   let is_val = receiver.try_recv();
+   match is_val {
+      Ok(Ok(())) => {return Ok(true);}
+      Ok(Err(_)) => {log::info!("gpu export cooked")}
+      _ => {INTERNAL_MESSAGE.replace(Some(receiver));}
+   };
+
+   Ok(false)
+}
+
+#[wasm_bindgen]
+pub fn get_export_to_num() -> Result<f32, JsValue> {
+   let globalstate = THE_STATE.replace(WebApp::Uninitialized);
+   let mut state: WgpuState = match globalstate {
+      WebApp::Uninitialized => {
+         log::info!("Can not do! Uninitialized");
+         return Err(JsValue::from_str("Can not do! Uninitialized"));
+      }
+      WebApp::Idle(state) => state
+   };
+
+   let thedata: Vec<f32> = {
+      let output_data = state.heateq.export_buffer.get_mapped_range(..);
+      bytemuck::cast_slice(&output_data).to_vec()
+   };
+
+   let length = state.heateq.length.clone();
+
+   THE_STATE.set(WebApp::Idle(state));
+
+   let mut the_sum: f64 = 0.0;
+   // for i in 0..(length as usize) {
+   //    the_sum += thedata[i] as f64;
+   // }
+   for i in thedata.iter() {the_sum += *i as f64}
+   return Ok(the_sum as f32)
+}

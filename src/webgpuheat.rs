@@ -389,15 +389,15 @@ impl HeatComputer {
          }
       }
 
-      #[cfg(target_arch = "wasm32")]
-      let progress_ref = {
-         let temp_ref = self.progress.clone();
-         {
-            let mut progress = temp_ref.lock().unwrap();
-            *progress = Some(ComputeRelevantEvent::ComputeIsWorking);
-         }
-         temp_ref
-      };
+      // #[cfg(target_arch = "wasm32")]
+      // let progress_ref = {
+      //    let temp_ref = self.progress.clone();
+      //    {
+      //       let mut progress = temp_ref.lock().unwrap();
+      //       *progress = Some(ComputeRelevantEvent::ComputeIsWorking);
+      //    }
+      //    temp_ref
+      // };
 
       pending_queue.push(encoder.finish())
       //queue.submit([encoder.finish()]);

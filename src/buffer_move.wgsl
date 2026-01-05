@@ -3,7 +3,7 @@
 @group(0) @binding(2) var<uniform> length: u32;
 
 @compute// Entrypoint
-@workgroup_size(256,1,1)
+@workgroup_size(64,1,1)
 fn main(
    //we use these to get which workgroup and where inside workgroup we are
    //@builtin(workgroup_id) wid: vec3<u32>,
@@ -15,14 +15,8 @@ fn main(
 ) {
    // valuable reference: https://www.w3.org/TR/WGSL/#arithmetic-expr
 
-   // for ij indices. getting i requires % but we dont need it
-   let roughj = gid.x / length;
-
-   // exit if on boundary. might be inefficient but easier to call too many workers
-   if (gid.x <= length) {return;}                     // i.e. y=0
-   if (gid.x >= length * (length - 1)) {return;}      // i.e. y=1
-   if (gid.x == roughj * length) {return;}            // i.e. x=0
-   if (gid.x == (roughj + 1) * length - 1) {return;}  // i.e. x=1
+   // exit if not on grid
+   if (gid.x > (length * length)) {return;}
 
    out[gid.x] = data[gid.x];
 }
