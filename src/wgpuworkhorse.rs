@@ -106,13 +106,15 @@ pub struct WgpuState {
 }
 
 impl WgpuState {
+
    pub async fn new(
       #[cfg(target_arch = "wasm32")]
       valid_pre_surface: web_sys::HtmlCanvasElement,
       #[cfg(not(target_arch = "wasm32"))]
       valid_pre_surface: Arc<Window>,
    ) -> anyhow::Result<Self> {
-      Self::new_with(valid_pre_surface, 256).await
+
+      Self::new_with(valid_pre_surface, 256, 256).await
    }
 
    pub async fn new_with(
@@ -120,10 +122,10 @@ impl WgpuState {
       valid_pre_surface: web_sys::HtmlCanvasElement,
       #[cfg(not(target_arch = "wasm32"))]
       valid_pre_surface: Arc<Window>,
-      length: u32,
+      width: u32,
+      height: u32,
    ) -> anyhow::Result<Self>
    {
-      gen_print("wgpu state builder");
       let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
           #[cfg(not(target_arch = "wasm32"))]
           backends: wgpu::Backends::PRIMARY,
@@ -131,8 +133,6 @@ impl WgpuState {
           backends: wgpu::Backends::BROWSER_WEBGPU,
           ..Default::default()
       });
-
-      gen_print("instance okay");
 
       #[cfg(target_arch = "wasm32")]
       let surface: wgpu::Surface = {
@@ -147,8 +147,8 @@ impl WgpuState {
       gen_print("surface okay");
 
       let size = wgpu::Extent3d {
-         width: length,
-         height: length,
+         width: width,
+         height: height,
          depth_or_array_layers: 1,
       };
 
@@ -370,17 +370,19 @@ impl WgpuState {
       gen_print("buffers and shaders okay");
 
       let mut heateq = HeatComputer::new(
-         SquareGrid::newbyfunc(
-            length as usize,
+         RectGrid::newbyfunc(
+            width as usize,
+            height as usize,
             makemiddleRatTinitconds(0.2, 400.)
          ).getarray(),
-         length,
+         width,
+         height,
          &device
       );
 
       gen_print("heat compute okay");
 
-      let delta_t: f32 = 1. / (8. * length.pow(2) as f32); // safety factor 0.5
+      let delta_t: f32 = 1. / (4. * (width.pow(2) + height.pow(2)) as f32); // safety factor 0.5
       heateq.update_values(&queue, 100, 1., delta_t, 0., 200.);
 
       let mut encoder = device.create_command_encoder(&Default::default());

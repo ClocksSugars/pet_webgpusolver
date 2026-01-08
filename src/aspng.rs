@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::fs::File;
 use std::io::BufWriter;
+
+
 use png;
 
 pub struct PngConfig {
@@ -41,10 +43,10 @@ impl PngConfig {
       }
    }
 
-   pub fn writeDataAtPath(&self, data: &[u8], length: u32, path: &Path) {
+   pub fn writeDataAtPath(&self, data: &[u8], width: u32, height: u32, path: &Path) {
       let file = File::create(path).unwrap();
       let ref mut bufwriter = BufWriter::new(file);
-      let mut encoder = png::Encoder::new(bufwriter, length, length);
+      let mut encoder = png::Encoder::new(bufwriter, width, height);
       encoder.set_color(self.color);
       encoder.set_depth(self.depth);
       encoder.set_source_gamma(self.gamma);

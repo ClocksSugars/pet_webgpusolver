@@ -2,7 +2,8 @@
 @group(0) @binding(1) var<storage, read_write> rgba_out: array<u32>;
 @group(0) @binding(2) var<uniform> minT: f32;
 @group(0) @binding(3) var<uniform> maxT: f32;
-@group(0) @binding(4) var<uniform> length: u32;
+@group(0) @binding(4) var<uniform> width: u32;
+@group(0) @binding(5) var<uniform> height: u32;
 
 
 // GOING TO HAVE TO DO SOME EVIL BITWISE MANIPULATION HERE

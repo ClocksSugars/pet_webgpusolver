@@ -29,7 +29,8 @@ pub enum ComputeRelevantEvent {
 #[allow(non_snake_case)]
 pub struct HeatComputer {
    pub iteration_quantity: u32,
-   pub length: u32,
+   pub width: u32,
+   pub height: u32,
    pub workgroup_size: u32,
    pub fix_boundary_conditions_shdr: wgpu::ShaderModule,
    pub laplacian_shader: wgpu::ShaderModule,
@@ -45,7 +46,8 @@ pub struct HeatComputer {
    pub midpoint_laplacian_buffer: wgpu::Buffer,
    pub output_buffer: wgpu::Buffer,
    pub export_buffer: wgpu::Buffer,
-   pub length_buffer: wgpu::Buffer,
+   pub width_buffer: wgpu::Buffer,
+   pub height_buffer: wgpu::Buffer,
    pub kappa_buffer: wgpu::Buffer,
    pub delta_t_buffer: wgpu::Buffer,
    pub delta_t_2_buffer: wgpu::Buffer,
@@ -161,25 +163,22 @@ fn helper_compute_bind_group(
 impl HeatComputer {
    pub fn new(
       initial_data: &Vec<f32>,
-      length: u32,
+      width: u32,
+      height: u32,
       device: &wgpu::Device,
       //queue: &wgpu::Queue,
    ) -> Self {
-      assert_eq!(initial_data.len() as u32,length*length);
+      assert_eq!(initial_data.len() as u32, width*height);
 
       let laplacian_shader = device.create_shader_module(wgpu::include_wgsl!("laplacian.wgsl"));
       let iterate_shader = device.create_shader_module(wgpu::include_wgsl!("iterate_heat.wgsl"));
       let buffer_move_shader = device.create_shader_module(wgpu::include_wgsl!("buffer_move.wgsl"));
       let fix_boundary_conditions_shdr = device.create_shader_module(wgpu::include_wgsl!("boundary_cond.wgsl"));
 
-      gen_print("compute shaders processed");
-
       let laplacian_pipeline = helper_basic_compute_shader(device, Some("Laplacian Pipeline"), &laplacian_shader);
       let iterate_pipeline = helper_basic_compute_shader(device, Some("Iteration Pipeline"), &iterate_shader);
       let buffer_move_pipeline = helper_basic_compute_shader(device, Some("Relocation Pipeline"), &buffer_move_shader);
       let fix_boundary_conditions_ppln = helper_basic_compute_shader(device, Some("Boundary Conds Pipeline"), &fix_boundary_conditions_shdr);
-
-      gen_print("compute pipelines processed");
 
       let data_buffer = device.create_buffer_init(&BufferInitDescriptor {
          label: Some("data"),
@@ -211,9 +210,14 @@ impl HeatComputer {
       );
 
 
-      let length_buffer = device.create_buffer_init(&BufferInitDescriptor {
-          label: Some("length"),
-          contents: bytemuck::cast_slice(&[length]),
+      let width_buffer = device.create_buffer_init(&BufferInitDescriptor {
+          label: Some("width"),
+          contents: bytemuck::cast_slice(&[width]),
+          usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+      });
+      let height_buffer = device.create_buffer_init(&BufferInitDescriptor {
+          label: Some("height"),
+          contents: bytemuck::cast_slice(&[height]),
           usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
       });
       let kappa_buffer = helper_param_buffer(device,Some("kappa"),4);
@@ -228,33 +232,33 @@ impl HeatComputer {
       //    the laplacian since it effectively fixes the laplacian equal to zero on the boundary.
       let fix_boundary_conditions_bg = helper_compute_bind_group(
          device, None, &fix_boundary_conditions_ppln,
-         &[&data_buffer, &length_buffer]
+         &[&data_buffer, &width_buffer, &height_buffer]
       );
 
       // compute laplacian of data
       let stage_one_bind_group = helper_compute_bind_group(
          device, None, &laplacian_pipeline,
-         &[&data_buffer, &laplacian_buffer, &length_buffer]
+         &[&data_buffer, &laplacian_buffer, &width_buffer, &height_buffer]
       );
       // compute RK2 midpoint using laplacian
       let stage_two_bind_group = helper_compute_bind_group(
          device, None, &iterate_pipeline,
-         &[&data_buffer, &laplacian_buffer, &midpoint_buffer, &length_buffer, &kappa_buffer, &delta_t_2_buffer]
+         &[&data_buffer, &laplacian_buffer, &midpoint_buffer, &width_buffer, &height_buffer, &kappa_buffer, &delta_t_2_buffer]
       );
       // reuse laplacian pipeline to compute laplacian using midpoint buffer
       let stage_three_bind_group = helper_compute_bind_group(
          device, None, &laplacian_pipeline,
-         &[&midpoint_buffer, &midpoint_laplacian_buffer, &length_buffer]
+         &[&midpoint_buffer, &midpoint_laplacian_buffer, &width_buffer, &height_buffer]
       );
       // reuse RK2 midpoint pipeline but with delta_t instead of delta_t/2 to compute RK2 result
       let stage_four_bind_group = helper_compute_bind_group(
          device, None, &iterate_pipeline,
-         &[&data_buffer, &midpoint_laplacian_buffer, &output_buffer, &length_buffer, &kappa_buffer, &delta_t_buffer]
+         &[&data_buffer, &midpoint_laplacian_buffer, &output_buffer, &width_buffer, &height_buffer, &kappa_buffer, &delta_t_buffer]
       );
       // send output buffer to data buffer so we can repeat this
       let stage_five_bind_group = helper_compute_bind_group(
          device, None, &buffer_move_pipeline,
-         &[&output_buffer, &data_buffer, &length_buffer]
+         &[&output_buffer, &data_buffer, &width_buffer, &height_buffer]
       );
 
       #[allow(non_snake_case)]
@@ -271,13 +275,12 @@ impl HeatComputer {
       });
       let heat_hue_bind_group = helper_compute_bind_group(
          device, None, &heat_hue_pipeline,
-         &[&data_buffer, &heat_hue_buffer, &vis_minT_buffer, &vis_maxT_buffer, &length_buffer]
+         &[&data_buffer, &heat_hue_buffer, &vis_minT_buffer, &vis_maxT_buffer, &width_buffer, &height_buffer]
       );
 
-
-
       Self {
-         length,
+         width,
+         height,
          workgroup_size: 64,
          fix_boundary_conditions_shdr,
          laplacian_shader,
@@ -293,7 +296,8 @@ impl HeatComputer {
          midpoint_laplacian_buffer,
          output_buffer,
          export_buffer,
-         length_buffer,
+         width_buffer,
+         height_buffer,
          kappa_buffer,
          delta_t_buffer,
          delta_t_2_buffer,
@@ -360,7 +364,7 @@ impl HeatComputer {
          // this is also where we define the steps the gpu should take. so far as
          //    i can tell, this is similar to sending an io monad to the gpu
 
-         let boundary_conds_wg_quant = (self.length*4).div_ceil(self.workgroup_size);
+         let boundary_conds_wg_quant = (self.width*2 + self.height*2).div_ceil(self.workgroup_size);
 
          for _ in 0..self.iteration_quantity {
          gputodo.set_pipeline(&self.fix_boundary_conditions_ppln);
@@ -483,8 +487,8 @@ impl HeatComputer {
             buffer: &self.heat_map_buffer,
             layout: wgpu::TexelCopyBufferLayout {
                offset: 0,
-               bytes_per_row: Some(4 * self.length),
-               rows_per_image: Some(self.length)
+               bytes_per_row: Some(4 * self.width),
+               rows_per_image: Some(self.height)
             }
          },
          wgpu::TexelCopyTextureInfo {
@@ -533,8 +537,8 @@ impl HeatComputer {
             buffer: &self.heat_map_buffer,
             layout: wgpu::TexelCopyBufferLayout {
                offset: 0,
-               bytes_per_row: Some(4 * self.length),
-               rows_per_image: Some(self.length)
+               bytes_per_row: Some(4 * self.width),
+               rows_per_image: Some(self.height)
             }
          },
          wgpu::TexelCopyTextureInfo {
@@ -575,7 +579,8 @@ impl HeatComputer {
 
       PngConfig::default().writeDataAtPath(
          &colordata,
-         self.length,
+         self.width,
+         self.height,
          std::path::Path::new("checkthis.png")
       );
 
