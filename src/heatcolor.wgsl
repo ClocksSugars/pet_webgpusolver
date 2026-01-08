@@ -15,7 +15,7 @@ fn main(
    @builtin(global_invocation_id) gid: vec3<u32>
 ) {
 
-   if (gid.x >= length * length) {return;}
+   if (gid.x >= width * height) {return;}
 
    let range = clamp((data[gid.x] - minT)/(maxT - minT), 0.0f, 1.0f);
 

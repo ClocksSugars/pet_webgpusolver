@@ -51,6 +51,9 @@
          <body id="wasm-example">
            <canvas id="canvas"></canvas>
            <p>
+              <b id="message_receiver">messages from the program will appear here </b>
+           </p>
+           <p>
               min_T: <input type="number", id="min_T", value="0.0" required /> (how cold is max blue)
            </p>
            <p>
@@ -88,9 +91,6 @@
               <button type="button" id="send_xy"> Reinitialize Sim with $\Delta x$/$\Delta y$ </button>
            </p>
            <script src="./loader.js" type="module" defer></script>
-            <p>
-               <b id="message_receiver">messages from the program will appear here </b>
-            </p>
       </section>
    </body>
 </html>

@@ -1,5 +1,6 @@
 @group(0) @binding(0) var<storage, read_write> data: array<f32>;
-@group(0) @binding(1) var<uniform> length: u32;
+@group(0) @binding(1) var<uniform> width: u32;
+@group(0) @binding(2) var<uniform> height: u32;
 
 @compute// Entrypoint
 @workgroup_size(64,1,1)
@@ -13,41 +14,51 @@ fn main(
    @builtin(global_invocation_id) gid: vec3<u32>
 ) {
 
-   // we need 4 * length with different behaviours for each side
-   // regard mention of length as ostensibly y+=1
+   // we need 2 * width + 2 * height with different behaviours for each side
+   // regard adding width as ostensibly y+=delta_y since each y coordinate position is separated by a width
 
 
-   if (gid.x < length) {                                               // side y=0 line
+   if (gid.x < width) {                                               // side y=0 line
       if (gid.x == 0) {
-         data[0] = data[length + 1]; //corner
-      } else if (gid.x == length){
-         data[length] = data[2 * length - 2]; //corner
+         //corner, set (0,0) value to (delta_x,delta_y) value
+         data[0] = data[width + 1];
+      } else if (gid.x == width){
+         //corner, set (1,0) value to (1 - delta_x,delta_y) value
+         data[width] = data[2 * width - 2];
       } else {
-         data[gid.x] = data[gid.x + length];
+         // set (x,0) values to (x,delta_y) values
+         data[gid.x] = data[gid.x + width];
       }
       return;
-   } else if (gid.x < 2 * length ){                                      // side 2
-      if ((gid.x == length) | (gid.x == ((2 * length) - 1))) {
-         return; // corners, handled by lines 1 and 3
+   } else if (gid.x < width + height ){                                     // side 2
+      // in these cases we must regard gid.x as y+width since we havent subtracted that
+      if ((gid.x == width) | (gid.x == ((width + height) - 1))) {
+         return; // corners, handled by sides 1 and 3
       }
-      let indexwecareabout = (gid.x - length) * length; // y axis
+      // set (0,y) values to (delta_x, y) values
+      let indexwecareabout = (gid.x - width) * width; // y axis
       data[indexwecareabout] = data[indexwecareabout + 1];
       return;
-   } else if (gid.x < 3 * length ){                                       // side 3
-      if (gid.x == 2 * length) {
-         data[(length - 1) * length] = data[(length - 2) * length + 1]; //corner
-      } else if (gid.x == (3 * length) - 1){
-         data[length * length] = data[((length - 1) * length) - 1]; //corner
+   } else if (gid.x < (2*width) + height ){                                       // side 3
+      // in these cases we must regard gid.x as x+width+height since we havent subtracted that
+      if (gid.x == width + height) {
+         // corner, set (0,1) value to (delta_x, 1 - delta_y) value
+         data[width * (height - 1)] = data[width * (height - 2) + 1];
+      } else if (gid.x == (2*width) + height - 1) {
+         // corner, set (1,1) value to (1 - delta_x, 1 - delta_y) value
+         data[width * height] = data[width * (height - 1) - 2];
       } else {
-         let indexwecareabout = (gid.x - (2*length) ) + ((length - 1) * length);
-         data[indexwecareabout] = data[indexwecareabout - length];
+         // set (x,1) values to (x, 1 - delta_y) values
+         let indexwecareabout = (gid.x - width - height ) + (width * (height - 1));
+         data[indexwecareabout] = data[indexwecareabout - width];
       }
       return;
-   } else if (gid.x < 4 * length ){                                       // side 4
-      if ((gid.x == (3 * length)) | (gid.x == ((4 * length) - 1))) {
-         return; // corners, handled by lines 1 and 3
+   } else if (gid.x < 2 * width + 2 * height ){                                       // side 4
+      if ((gid.x == (2*width) + height) | (gid.x == 2 * width + 2 * height - 1)) {
+         return; // corners, handled by sides 1 and 3
       } else {
-         let indexwecareabout = (gid.x - (3*length) + 1) * length - 1;
+         // the +1 before we multiply by width is so we are one more row than we want, then the -1 takes us to the y=1 side of the previous row
+         let indexwecareabout = (gid.x - ((2*width) + height) + 1) * width - 1;
          data[indexwecareabout] = data[indexwecareabout - 1];
          return;
       }

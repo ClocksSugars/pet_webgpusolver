@@ -215,7 +215,7 @@ pub fn get_export_to_num() -> Result<f32, JsValue> {
       bytemuck::cast_slice(&output_data).to_vec()
    };
 
-   let length = state.heateq.length.clone();
+   //let length = state.heateq.length.clone();
 
    THE_STATE.set(WebApp::Idle(state));
 

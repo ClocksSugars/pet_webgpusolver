@@ -17,7 +17,7 @@ fn main(
    // valuable reference: https://www.w3.org/TR/WGSL/#arithmetic-expr
 
    // for ij indices. getting i requires % but we dont need it
-   let roughj = gid.x / length;
+   let roughj = gid.x / width;
 
    // exit if on boundary. might be inefficient but easier to call too many workers
    if (gid.x <= width) {return;}                     // i.e. y=0

@@ -19,16 +19,8 @@ fn main(
 ) {
    // valuable reference: https://www.w3.org/TR/WGSL/#arithmetic-expr
 
-   // for ij indices. getting i requires % but we dont need it
-   let roughj = gid.x / width;
-
-   // exit if on boundary. might be inefficient but easier to call too many workers
-   if (gid.x <= width) {return;}                     // i.e. y=0
-   if (gid.x >= width * (height - 1)) {return;}      // i.e. y=1
-   if (gid.x == roughj * width) {return;}            // i.e. x=0
-   if (gid.x == (roughj + 1) * width - 1) {return;}  // i.e. x=1
-
-
+   // // exit if on boundary. might be inefficient but easier to call too many workers
+   if (gid.x > (width * height)) {return;}
 
    output[gid.x] = data[gid.x] + delta_t * kappa * laplacian[gid.x];
 }
