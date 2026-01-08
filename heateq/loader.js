@@ -47,39 +47,18 @@ document.getElementById("N_add").addEventListener("change", (event) => {
 
 
 import {
-   run_a_compute_iter,
-   render_a_frame,
-   update_values,
-   send_output_to_export,
-   //setup_temp_receiver,
-   is_receiver_ready,
-   get_export_to_num
+   run_a_compute_loop,
+   render_a_frame
 } from "./pkg/pet_webgpusolver.js";
 
 var max_N = 52488;
 var N_add = 100;
 var current_N = 0;
 var stop_compute = false;
-var get_total_temp = true;
 
 function run_compute() {
-   run_a_compute_iter();
-   if (get_total_temp) {
-      send_output_to_export();
-      render_a_frame();
-      //setup_temp_receiver();
-      get_total_temp = false;
-   } else {
-      render_a_frame();
-   }
-
-   let receiver_response = is_receiver_ready();
-   if (receiver_response) {
-      //console.log(`tried to export num with receiver ${receiver_response}`)
-      let total_energy = get_export_to_num();
-      document.getElementById("message_receiver").textContent = `total energy: ${total_energy}`
-      get_total_temp = true;
-   }
+   run_a_compute_loop();
+   render_a_frame();
 
    current_N = current_N + N_add
 
@@ -94,15 +73,4 @@ document.getElementById("compute").addEventListener("click", (event) => {
 
 document.getElementById("break").addEventListener("click", (event) => {
    stop_compute = true;
-})
-
-document.getElementById("update_vals").addEventListener("click", (event) => {
-   max_N = document.getElementById("max_N").value
-   update_values(
-      document.getElementById("N_add").value,
-      document.getElementById("kappa").value,
-      document.getElementById("delta_t").value,
-      document.getElementById("min_T").value,
-      document.getElementById("max_T").value,
-   )
 })

@@ -4,7 +4,7 @@
 @group(0) @binding(3) var<uniform> height: u32;
 
 @compute// Entrypoint
-@workgroup_size(256,1,1)
+@workgroup_size(64,1,1)
 fn main(
    //we use these to get which workgroup and where inside workgroup we are
    //@builtin(workgroup_id) wid: vec3<u32>,
