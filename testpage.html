@@ -12,7 +12,7 @@
       }
       canvas {
         background-color: black;
-        //width: 100%;
+        max-width: 600px;
         //height: 100%;
       }
     </style>
@@ -20,11 +20,49 @@
 
   <body id="wasm-example">
     <canvas id="canvas"></canvas>
+    <p style="padding: 0.5em">
+       min_T: <input type="number", id="min_T", required />
+    </p>
+    <p style="padding: 0.5em">
+       max_T: <input type="number", id="max_T", required />
+    </p>
+    <p style="padding: 0.5em">
+       kappa: <input type="number", id="kappa", required />
+    </p>
+    <p style="padding: 0.5em">
+       delta_t: <input type="number", id="delta_t", required />
+    </p>
+    <p style="padding: 0.5em">
+       <button type="button" id="auto_delta_t"> Auto delta_t from $\kappa$ & $\delta_x / \delta_y$ </button> with safety factor: <input type="number", id="safety_factor", required />
+    </p>
+    <p style="padding: 0.5em">
+       delta_x/y: <input type="number", id="delta_x_y", required /> (elements are square for now)
+    </p>
+    <p style="padding: 0.5em">
+       total timesteps: <input type="number", id="max_N", required />
+    </p>
+    <p style="padding: 0.5em">
+       <button type="button" id="auto_max_N"> auto timesteps </button> from max time <input type="number", id="max_time", required />
+    </p>
+    <p style="padding: 0.5em">
+       timesteps per frame: <input type="number", id="N_add", required />
+    </p>
+    <p style="padding: 0.5em">
+       <button type="button" id="update_vals"> Update Values </button> <span style="padding:2em" /> <button type="button" id="compute"> Run Compute </button>
+    </p>
     <script type="module">
+      const canvas = document.getElementById("myCanvas");
       import init from "./pkg/pet_webgpusolver.js";
-      init().then(() => {
-        console.log("WASM Loaded");
-      });
+
+      async function run() {
+         await init()
+      }
+
+      run();// run().then(() => {
+      //   console.log("WASM Loaded");
+      // });
+
+      console.log("WASM Loaded");
     </script>
   </body>
 </html>
