@@ -16,6 +16,7 @@ env_logger = "0.10"
 wgpu = "27.0.1"
 winit = { version = "0.30.12" } #features = ["android-native-activity"] }
 log = "0.4"
+csv = "1.4.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -34,5 +35,5 @@ web-sys = { version = "0.3.83", features = [
     "Element",
     "HtmlElement",
     "HtmlCanvasElement",
-    "Node"
+    "Node",
 ]}

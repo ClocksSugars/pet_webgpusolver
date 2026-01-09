@@ -66,7 +66,7 @@
               $\Delta t$: <input type="number", id="delta_t", value="1.9073486328125e-06" required />
            </p>
            <p>
-              <button type="button" id="auto_delta_t"> Auto delta_t from $\kappa$ & $\Delta x$ / $\Delta y$ </button> with safety factor: <input type="number", id="safety_factor", value="0.5", style="width:5em" required />
+              <button type="button" id="auto_delta_t"> Auto $\Delta t$ from $\kappa$ & $\Delta x$ / $\Delta y$ </button> with safety factor: <input type="number", id="safety_factor", value="0.5", style="width:5em" required />
            </p>
            <p>
               total timesteps: <input type="number", id="max_N", min="1", step="1", value="524288" required />
@@ -85,10 +85,13 @@
               <button type="button" id="break"> Stop Compute </button>
            </p>
            <p>
-              $\Delta x$ or $\Delta y$: <input type="number", id="delta_x_y", value="0.00390625" required /> simulates <span id="length_display">256x</span><input type="number", id="length_val", min="1", step="1" value="256" style="width:5em" required /> grid
+              $\Delta x$ <input type="number", id="delta_x", value="0.00390625" style="width:8em" required /> and $\Delta y$ <input type="number", id="delta_y", value="0.00390625" style="width:8em" required /> simulates a <input type="number", id="width_val", min="1", step="1" value="256" style="width:4em" required />x<input type="number", id="height_val", min="1", step="1" value="256" style="width:4em" required /> grid <br /> currently a <span id="current_grid_shape">256x256</span> grid
            </p>
            <p>
-              <button type="button" id="send_xy"> Reinitialize Sim with $\Delta x$/$\Delta y$ </button>
+              Import Initial Conditions and $\Delta x$/$\Delta y$ from .CSV file <input type="file" id="take_in_csv" accept=".csv"/> <br /> and <button type="button" id="send_csv_to_gpu">Reinitialize Sim With Condition</button> (Requires CSV delimter is comma )
+           </p>
+           <p>
+              <button type="button" id="send_xy"> Reinitialize Sim with $\Delta x$ and $\Delta y$ </button> With default Initial conditions
            </p>
            <script src="./loader.js" type="module" defer></script>
       </section>

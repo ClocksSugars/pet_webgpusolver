@@ -1,6 +1,6 @@
 use crate::aspng::*;
 use crate::mathutils::*;
-use crate::squaregrid::*;
+use crate::rectgrid::*;
 use crate::webgpuheat::*;
 use crate::wgpuworkhorse;
 
@@ -235,7 +235,7 @@ impl WgpuState {
           wgpu::TexelCopyBufferLayout {
               offset: 0,
               bytes_per_row: Some(4 * size.width),
-              rows_per_image: None,
+              rows_per_image: Some(size.height),
           },
           size,
       );
@@ -383,7 +383,7 @@ impl WgpuState {
       gen_print("heat compute okay");
 
       let delta_t: f32 = 1. / (4. * (width.pow(2) + height.pow(2)) as f32); // safety factor 0.5
-      heateq.update_values(&queue, 100, 1., delta_t, 0., 200.);
+      heateq.update_values(&queue, 100, 1., delta_t, 0., 400.);
 
       let mut encoder = device.create_command_encoder(&Default::default());
       heateq.unsafe_queue_color_job(&mut encoder);

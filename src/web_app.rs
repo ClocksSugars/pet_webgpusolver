@@ -1,9 +1,11 @@
 use std::future::pending;
+use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 use std::cell::{RefCell};
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
+use web_sys::{HtmlCanvasElement};
 
 use crate::wgpuworkhorse::*;
 
@@ -225,4 +227,164 @@ pub fn get_export_to_num() -> Result<f32, JsValue> {
    // }
    for i in thedata.iter() {the_sum += *i as f64}
    return Ok(the_sum as f32)
+}
+
+// we need this separate so that rust knows to add instructions to drop the gpu memory
+#[wasm_bindgen]
+pub fn junk_current_state() -> Result<(), wasm_bindgen::JsValue> {
+   _ = THE_STATE.replace(WebApp::Uninitialized);
+   _ = INTERNAL_MESSAGE.replace(None);
+
+   Ok(())
+}
+
+#[wasm_bindgen]
+pub async fn rinit_with_xy(width: u32, height: u32) -> Result<(), wasm_bindgen::JsValue> {
+    let window = wgpu::web_sys::window().unwrap_throw();
+    let document = window.document().unwrap_throw();
+    //let canvas = body.get_element_by_id(CANVAS_ID).unwrap_throw();
+    let canvas: web_sys::Element = document
+       .query_selector("canvas")
+       .expect("could not find canvas")
+       .expect("canvas query returned empty");
+    let html_canvas_element: HtmlCanvasElement = canvas
+       .dyn_into()
+       .expect("man your canvas is bonked or somethin");
+
+    let mut webstate = WgpuState::new_with(html_canvas_element, width, height)
+        .await
+        .map_err(|e| JsValue::from_str(&format!("error {}",e)))?;
+
+    webstate.render().map_err(|e| JsValue::from_str(&format!("error {}",e)));
+
+    console_error_panic_hook::set_once();
+    THE_STATE.set(WebApp::Idle(webstate));
+
+    Ok(())
+}
+
+#[wasm_bindgen]
+pub fn give_current_width() -> Result<u32, JsValue> {
+   let globalstate = THE_STATE.replace(WebApp::Uninitialized);
+   let state: WgpuState = match globalstate {
+      WebApp::Uninitialized => {
+         log::info!("Can not do! Uninitialized");
+         return Err(JsValue::from_str("Can not do! Uninitialized"));
+      }
+      WebApp::Idle(state) => state
+   };
+
+   let answer: u32 = state.heateq.width.clone();
+   THE_STATE.replace(WebApp::Idle(state));
+   Ok(answer)
+}
+
+#[wasm_bindgen]
+pub fn give_current_height() -> Result<u32, JsValue> {
+   let globalstate = THE_STATE.replace(WebApp::Uninitialized);
+   let state: WgpuState = match globalstate {
+      WebApp::Uninitialized => {
+         log::info!("Can not do! Uninitialized");
+         return Err(JsValue::from_str("Can not do! Uninitialized"));
+      }
+      WebApp::Idle(state) => state
+   };
+
+   let answer: u32 = state.heateq.height.clone();
+   THE_STATE.replace(WebApp::Idle(state));
+   Ok(answer)
+}
+
+#[wasm_bindgen]
+pub async fn init_with_csv(csv_as_string: String) -> Result<String, JsValue> {
+   let mut csvrdr = csv::ReaderBuilder::new()
+      .delimiter(b',')
+      .from_reader(csv_as_string.as_bytes());
+
+   let mut width: u32 = 0;
+   let mut height: u32 = 0;
+   let mut newbuffer: Vec<f32> = Vec::new();
+
+   if let Some(result) = csvrdr.records().next() {
+      let first_line = match result {
+         Ok(is_ok) => is_ok,
+         Err(_) => {return Ok(String::from_str("failed to read first line of csv").unwrap());}
+      };
+      for i in first_line.iter() {
+         match i.parse::<f32>() {
+            Ok(num) => {
+               newbuffer.push(num);
+               width += 1;
+            }
+            Err(_) => {return Ok(String::from_str(&format!(
+               "could not read csv entry (0,{}) as float32",
+               width)).unwrap());}
+         }
+      }
+      height += 1;
+   } else {
+      return Ok(String::from_str("couldnt find first row").unwrap());
+   }
+
+   loop {
+      if let Some(result) = csvrdr.records().next() {
+         let next_line = match result {
+            Ok(is_ok) => is_ok,
+            Err(_) => {return Ok(String::from_str(&format!(
+               "failed to read {}'th line of csv, was it longer or shorter than other lines?",
+               height + 1)).unwrap());}
+         };
+         let mut x_coord = 0;
+         for i in next_line.iter() {
+            match i.parse::<f32>() {
+               Ok(num) => {newbuffer.push(num); x_coord += 1;}
+               Err(_) => {return Ok(String::from_str(&format!(
+                  "failed to read element ({},{}) of csv as float32?",
+                  x_coord, height)).unwrap());
+               }
+            };
+            height += 1;
+         }
+         if !(x_coord == width) {return Ok(String::from_str(&format!(
+            "{}'th line of csv was {} long instead of {}", height, x_coord, width)).unwrap());}
+      } else {
+         break;
+      }
+   }
+
+   if !(newbuffer.len() == (width * height) as usize) {
+      return Ok(String::from_str(&format!(
+         "csv failed data-length is width times height test (width {} and height {})", width, height)).unwrap());
+   }
+
+   _ = junk_current_state();
+
+   let window = wgpu::web_sys::window().unwrap_throw();
+   let document = window.document().unwrap_throw();
+   let canvas: web_sys::Element = document
+      .query_selector("canvas")
+      .expect("could not find canvas")
+      .expect("canvas query returned empty");
+   let html_canvas_element: HtmlCanvasElement = canvas
+      .dyn_into()
+      .expect("man your canvas is bonked or somethin");
+   let mut state = WgpuState::new_with(html_canvas_element, width, height)
+       .await
+       .map_err(|e| JsValue::from_str(&format!("error {}",e)))?;
+
+   state.queue.write_buffer(
+      &state.heateq.data_buffer,
+      0,
+      bytemuck::cast_slice(newbuffer.as_slice())
+   );
+
+   let mut pending_queue: Vec<wgpu::CommandBuffer> = Vec::new();
+   state.heateq.send_color_job(&mut pending_queue, &state.device);
+   state.heateq.color_to_texture(&mut pending_queue, &state.device, &state.texture_buffer);
+   _ = state.pending_queue.replace(pending_queue);
+   state.render();
+
+   THE_STATE.replace(WebApp::Idle(state));
+
+   Ok(String::from_str("success!").unwrap())
 }

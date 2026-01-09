@@ -1,5 +1,5 @@
 mod mathutils;
-mod squaregrid;
+mod rectgrid;
 mod aspng;
 mod webgpuheat;
 mod wgpuworkhorse;
@@ -12,7 +12,7 @@ mod desktop_app;
 
 use crate::aspng::*;
 use crate::mathutils::*;
-use crate::squaregrid::*;
+use crate::rectgrid::*;
 use crate::webgpuheat::*;
 
 use std::fmt::Display;
