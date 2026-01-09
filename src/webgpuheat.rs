@@ -31,6 +31,7 @@ pub struct HeatComputer {
    pub iteration_quantity: u32,
    pub width: u32,
    pub height: u32,
+   pub pad_per_line: u32,
    pub workgroup_size: u32,
    pub fix_boundary_conditions_shdr: wgpu::ShaderModule,
    pub laplacian_shader: wgpu::ShaderModule,
@@ -51,6 +52,7 @@ pub struct HeatComputer {
    pub kappa_buffer: wgpu::Buffer,
    pub delta_t_buffer: wgpu::Buffer,
    pub delta_t_2_buffer: wgpu::Buffer,
+   pub pad_buffer: wgpu::Buffer,
 
    // When i have more confidence, these should be an vec of 'steps'
    //    although that may require the above pipelines to be changed to
@@ -170,6 +172,8 @@ impl HeatComputer {
    ) -> Self {
       assert_eq!(initial_data.len() as u32, width*height);
 
+      let pad_per_line: u32 = width.div_ceil(64) * 64 - width;
+
       let laplacian_shader = device.create_shader_module(wgpu::include_wgsl!("laplacian.wgsl"));
       let iterate_shader = device.create_shader_module(wgpu::include_wgsl!("iterate_heat.wgsl"));
       let buffer_move_shader = device.create_shader_module(wgpu::include_wgsl!("buffer_move.wgsl"));
@@ -224,6 +228,11 @@ impl HeatComputer {
       let delta_t_buffer = helper_param_buffer(device,Some("delta_t"),4);
       // this is just the same number divided by two so we can reuse the pipeline
       let delta_t_2_buffer = helper_param_buffer(device,Some("delta_t_2"),4);
+      let pad_buffer = device.create_buffer_init(&BufferInitDescriptor {
+          label: Some("pad_per_line"),
+          contents: bytemuck::cast_slice(&[pad_per_line]),
+          usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+      });
 
       // if pipelines are like gpu function calls, this is where we identify our variables in address space.
       // in that sense we may freely put in different buffers like swapping arguments to a function
@@ -269,18 +278,19 @@ impl HeatComputer {
       let heat_hue_pipeline = helper_basic_compute_shader(device, Some("Heatmap Pipeline"), &heat_hue_shader);
       let heat_hue_buffer = device.create_buffer(&wgpu::BufferDescriptor {
          label: Some("heatmap"),
-         size: data_buffer.size(), // this is only bc f32 has same size as 4 * u8, which is what we need for RGBA
+         size: (256 * width.div_ceil(64) * height) as u64,
          usage: wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::STORAGE,
          mapped_at_creation: false
       });
       let heat_hue_bind_group = helper_compute_bind_group(
          device, None, &heat_hue_pipeline,
-         &[&data_buffer, &heat_hue_buffer, &vis_minT_buffer, &vis_maxT_buffer, &width_buffer, &height_buffer]
+         &[&data_buffer, &heat_hue_buffer, &vis_minT_buffer, &vis_maxT_buffer, &width_buffer, &height_buffer, &pad_buffer]
       );
 
       Self {
          width,
          height,
+         pad_per_line,
          workgroup_size: 64,
          fix_boundary_conditions_shdr,
          laplacian_shader,
@@ -301,6 +311,7 @@ impl HeatComputer {
          kappa_buffer,
          delta_t_buffer,
          delta_t_2_buffer,
+         pad_buffer,
 
          fix_boundary_conditions_bg,
          stage_one_bind_group,
@@ -487,7 +498,7 @@ impl HeatComputer {
             buffer: &self.heat_map_buffer,
             layout: wgpu::TexelCopyBufferLayout {
                offset: 0,
-               bytes_per_row: Some(4 * self.width),
+               bytes_per_row: Some(256 * self.width.div_ceil(64)),
                rows_per_image: Some(self.height)
             }
          },
@@ -537,7 +548,7 @@ impl HeatComputer {
             buffer: &self.heat_map_buffer,
             layout: wgpu::TexelCopyBufferLayout {
                offset: 0,
-               bytes_per_row: Some(4 * self.width),
+               bytes_per_row: Some(256 * self.width.div_ceil(64)),
                rows_per_image: Some(self.height)
             }
          },

@@ -40,7 +40,7 @@ pub struct State {
 
 impl State {
    pub async fn new(valid_pre_surface: Arc<Window>) -> anyhow::Result<Self>{
-      let pony = wgpuworkhorse::WgpuState::new(valid_pre_surface.clone()).await?;
+      let pony = wgpuworkhorse::WgpuState::new_with(valid_pre_surface.clone(),500,256).await?;
 
       // end_cli_receiver: oneshot::Receiver<()>,
       // cli_sender: mpsc::Sender<Vec<char>>

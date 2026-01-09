@@ -83,6 +83,7 @@ import {
 var max_N = 52488;
 var N_add = 100;
 var current_N = 0;
+var current_time = 0;
 var stop_compute = false;
 var get_total_temp = true;
 
@@ -98,12 +99,14 @@ function run_compute() {
    }
 
    current_N = current_N + N_add
+   current_time = current_time + parseFloat(document.getElementById("delta_t").value) * N_add;
 
    let receiver_response = is_receiver_ready();
    if (receiver_response) {
       //console.log(`tried to export num with receiver ${receiver_response}`)
       let total_energy = get_export_to_num();
-      document.getElementById("message_receiver").textContent = `total energy: ${total_energy}\ntime: ${current_N}`
+      document.getElementById("total_energy_goes_here").textContent = `${total_energy}`
+      document.getElementById("total_time_goes_here").textContent = `${current_time}`
       get_total_temp = true;
    }
 
@@ -121,7 +124,8 @@ document.getElementById("break").addEventListener("click", (event) => {
 })
 
 document.getElementById("update_vals").addEventListener("click", (event) => {
-   max_N = document.getElementById("max_N").value
+   max_N = document.getElementById("max_N").value;
+   N_add = document.getElementById("N_add").value;
    update_values(
       document.getElementById("N_add").value,
       document.getElementById("kappa").value,
@@ -156,26 +160,36 @@ function showMessage(thestring) {
 
 document.getElementById("send_xy").addEventListener("click", (event) => {
    reset_state_with_dims();
+   current_time = 0;
 })
 
-document.getElementById("send_csv_to_gpu").addEventListener("click", (event) => {
-   file = document.getElementById("take_in_csv").files[0];
+async function do_csv_process() {
+   var file = document.getElementById("take_in_csv").files[0];
    if (!file) {
-       return;
+      showMessage("no file!")
+      return;
      }
-   if (!file.type.startsWith("csv")) {
-       showMessage("Unsupported file type. Please select a text file.", "error");
-       return;
-     }
+   // if (!file.type.startsWith("csv")) {
+   //     showMessage("Unsupported file type. Please select a CSV file.", "error");
+   //     return;
+   //   }
    const reader = new FileReader();
+   var result = "not done yet";
    reader.onload = () => {
       stop_compute = true;
-      var result = init_with_csv(reader.result.readAsText());
-      if (result.startsWith("success!")) {
-         document.getElementById("width_val").value = give_current_width();
-         document.getElementById("height_val").value = give_current_height();
-      } else {
-         showMessage(result);
-      };
+      result = init_with_csv(reader.result);
      };
+   reader.readAsText(file);
+   result = await result;
+   showMessage(result);
+   if (result.startsWith("success!")) {
+      document.getElementById("width_val").value = give_current_width();
+      document.getElementById("height_val").value = give_current_height();
+   } else {
+      showMessage(result);
+   };
+}
+
+document.getElementById("send_csv_to_gpu").addEventListener("click", (event) => {
+   do_csv_process();
 })

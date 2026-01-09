@@ -51,7 +51,8 @@
          <body id="wasm-example">
            <canvas id="canvas"></canvas>
            <p>
-              <b id="message_receiver">messages from the program will appear here </b>
+              <b >total energy: <span id="total_energy_goes_here">0</span></b><br />
+              <b >time: <span id="total_time_goes_here">0</span></b>
            </p>
            <p>
               min_T: <input type="number", id="min_T", value="0.0" required /> (how cold is max blue)
@@ -92,6 +93,9 @@
            </p>
            <p>
               <button type="button" id="send_xy"> Reinitialize Sim with $\Delta x$ and $\Delta y$ </button> With default Initial conditions
+           </p>
+           <p>
+              <b id="message_receiver">messages from the program will appear here </b>
            </p>
            <script src="./loader.js" type="module" defer></script>
       </section>

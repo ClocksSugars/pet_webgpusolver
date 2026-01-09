@@ -202,7 +202,6 @@ impl WgpuState {
       let config = wgpu::SurfaceConfiguration {
          usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
          format: surface_format,
-         // Canvases can stretch!
          width: size.width,
          height: size.height,
          present_mode: surface_caps.present_modes[0],
@@ -222,7 +221,7 @@ impl WgpuState {
          view_formats: &[],
       });
 
-      let default_texture: Vec<u8> = [0,255,0,255].repeat((size.width * size.height) as usize);
+      let default_texture: Vec<u8> = [0,255,0,255].repeat((size.width.div_ceil(64) * size.height * 64) as usize);
 
       queue.write_texture(
           wgpu::TexelCopyTextureInfo {
@@ -234,7 +233,7 @@ impl WgpuState {
           &default_texture,
           wgpu::TexelCopyBufferLayout {
               offset: 0,
-              bytes_per_row: Some(4 * size.width),
+              bytes_per_row: Some(4 * (size.width.div_ceil(64) * 64)),
               rows_per_image: Some(size.height),
           },
           size,

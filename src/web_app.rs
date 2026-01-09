@@ -149,7 +149,7 @@ pub fn send_output_to_export() -> Result<(), JsValue> {
 
    state.heateq.export_buffer.unmap();
    let (sender,receiver) = tokio::sync::oneshot::channel();
-   encoder.copy_buffer_to_buffer(&state.heateq.output_buffer, 0, &state.heateq.export_buffer, 0, state.heateq.heat_map_buffer.size());
+   encoder.copy_buffer_to_buffer(&state.heateq.output_buffer, 0, &state.heateq.export_buffer, 0, state.heateq.output_buffer.size());
    encoder.map_buffer_on_submit(&state.heateq.export_buffer, wgpu::MapMode::Read, ..,
       move |result| {
          match sender.send(result) {

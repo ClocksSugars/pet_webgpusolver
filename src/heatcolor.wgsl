@@ -4,6 +4,8 @@
 @group(0) @binding(3) var<uniform> maxT: f32;
 @group(0) @binding(4) var<uniform> width: u32;
 @group(0) @binding(5) var<uniform> height: u32;
+@group(0) @binding(6) var<uniform> pad_per_line: u32;
+
 
 
 // GOING TO HAVE TO DO SOME EVIL BITWISE MANIPULATION HERE
@@ -56,5 +58,6 @@ fn main(
       + (u32(0016711680.0f * blue   ) & 0x00FF0000)   // 0016711680 is 0x00FF0000
    ;
 
-   rgba_out[gid.x] = color;
+   let roughj = gid.x / width;
+   rgba_out[gid.x + roughj * pad_per_line] = color;
 }
