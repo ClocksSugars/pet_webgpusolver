@@ -2,12 +2,35 @@ const canvas = document.getElementById("myCanvas");
 import init from "./pkg/pet_webgpusolver.js";
 
 async function run() {
-   await init()
+   await init();
 }
 
-run();
+await run();
 
 console.log("WASM Loaded");
+
+import {
+   run_a_compute_iter,
+   render_a_frame,
+   update_values,
+   send_output_to_export,
+   //setup_temp_receiver,
+   is_receiver_ready,
+   get_export_to_num,
+   junk_current_state,
+   rinit_with_xy,
+   parse_csv,
+   give_current_width,
+   give_current_height,
+   init_from_csv_buffer,
+   get_total_energy_in_one
+} from "./pkg/pet_webgpusolver.js";
+
+async function init_energy() {
+   var init_energy_val = await get_total_energy_in_one();
+   document.getElementById("total_energy_goes_here").textContent = init_energy_val;
+}
+init_energy();
 
 function validateintbox(element) {
    var val = Math.floor(element.value);
@@ -60,30 +83,20 @@ document.getElementById("auto_delta_t").addEventListener("click", (event) => {
    var width = document.getElementById("width_val").value;
    var height = document.getElementById("height_val").value;
    var kappa = document.getElementById("kappa").value;
-   var safety_factor = document.getElementById("kappa").value;
+   var safety_factor = document.getElementById("safety_factor").value;
    document.getElementById("delta_t").value = safety_factor / (2 * kappa * (width ** 2 + height ** 2))
 })
 
-
-import {
-   run_a_compute_iter,
-   render_a_frame,
-   update_values,
-   send_output_to_export,
-   //setup_temp_receiver,
-   is_receiver_ready,
-   get_export_to_num,
-   junk_current_state,
-   rinit_with_xy,
-   init_with_csv,
-   give_current_width,
-   give_current_height
-} from "./pkg/pet_webgpusolver.js";
+document.getElementById("auto_max_N").addEventListener("click", (event) => {
+   var theval = Math.ceil(document.getElementById("max_time").value / parseFloat(document.getElementById("delta_t").value));
+   document.getElementById("max_N").value = theval;
+})
 
 var max_N = 52488;
 var N_add = 100;
 var current_N = 0;
 var current_time = 0;
+var current_delta_t = parseFloat(document.getElementById("delta_t").value);
 var stop_compute = false;
 var get_total_temp = true;
 
@@ -99,7 +112,9 @@ function run_compute() {
    }
 
    current_N = current_N + N_add
-   current_time = current_time + parseFloat(document.getElementById("delta_t").value) * N_add;
+   current_time = current_time + current_delta_t * N_add;
+
+   console.log(current_N);
 
    let receiver_response = is_receiver_ready();
    if (receiver_response) {
@@ -124,8 +139,9 @@ document.getElementById("break").addEventListener("click", (event) => {
 })
 
 document.getElementById("update_vals").addEventListener("click", (event) => {
-   max_N = document.getElementById("max_N").value;
-   N_add = document.getElementById("N_add").value;
+   max_N = parseInt(document.getElementById("max_N").value);
+   N_add = parseInt(document.getElementById("N_add").value);
+   current_delta_t = parseFloat(document.getElementById("delta_t").value);
    update_values(
       document.getElementById("N_add").value,
       document.getElementById("kappa").value,
@@ -175,19 +191,25 @@ async function do_csv_process() {
    //   }
    const reader = new FileReader();
    var result = "not done yet";
-   reader.onload = () => {
+   reader.onload = async () => {
       stop_compute = true;
-      result = init_with_csv(reader.result);
+      result = parse_csv(reader.result);
+      showMessage(result);
+      if (result.startsWith("success!")) {
+         junk_current_state();
+         await init_from_csv_buffer();
+         document.getElementById("total_energy_goes_here").textContent = await (get_total_energy_in_one());
+         var width = give_current_width();
+         var height = give_current_height();
+         document.getElementById("width_val").value = width;
+         document.getElementById("height_val").value = height;
+         document.getElementById("delta_x").value = 1.0 / width;
+         document.getElementById("height_val").value = 1.0 / height;
+      } else {
+         showMessage(result);
+      };
      };
    reader.readAsText(file);
-   result = await result;
-   showMessage(result);
-   if (result.startsWith("success!")) {
-      document.getElementById("width_val").value = give_current_width();
-      document.getElementById("height_val").value = give_current_height();
-   } else {
-      showMessage(result);
-   };
 }
 
 document.getElementById("send_csv_to_gpu").addEventListener("click", (event) => {

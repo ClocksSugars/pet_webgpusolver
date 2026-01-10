@@ -233,7 +233,7 @@ impl WgpuState {
           &default_texture,
           wgpu::TexelCopyBufferLayout {
               offset: 0,
-              bytes_per_row: Some(4 * (size.width.div_ceil(64) * 64)),
+              bytes_per_row: Some(256 * size.width.div_ceil(64)),
               rows_per_image: Some(size.height),
           },
           size,

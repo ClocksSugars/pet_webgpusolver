@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::sync::{Mutex, OnceLock};
 use std::cell::{RefCell};
 
+use tokio::sync::watch::Ref;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use web_sys::{HtmlCanvasElement};
@@ -29,6 +30,10 @@ thread_local! {
          >
       >
    > = RefCell::new(None);
+}
+
+thread_local! {
+   pub static CSV_BUFFER : RefCell<Option<(Vec<f32>, u32, u32)>> = RefCell::new(None);
 }
 
 // Now expose all wgpu heat equation and rendering functionality to javascript
@@ -296,9 +301,10 @@ pub fn give_current_height() -> Result<u32, JsValue> {
 }
 
 #[wasm_bindgen]
-pub async fn init_with_csv(csv_as_string: String) -> Result<String, JsValue> {
+pub fn parse_csv(csv_as_string: String) -> Result<String, JsValue> {
    let mut csvrdr = csv::ReaderBuilder::new()
       .delimiter(b',')
+      .has_headers(false)
       .from_reader(csv_as_string.as_bytes());
 
    let mut width: u32 = 0;
@@ -312,10 +318,7 @@ pub async fn init_with_csv(csv_as_string: String) -> Result<String, JsValue> {
       };
       for i in first_line.iter() {
          match i.parse::<f32>() {
-            Ok(num) => {
-               newbuffer.push(num);
-               width += 1;
-            }
+            Ok(num) => { newbuffer.push(num); width += 1; }
             Err(_) => {return Ok(String::from_str(&format!(
                "could not read csv entry (0,{}) as float32",
                width)).unwrap());}
@@ -343,10 +346,10 @@ pub async fn init_with_csv(csv_as_string: String) -> Result<String, JsValue> {
                   x_coord, height)).unwrap());
                }
             };
-            height += 1;
          }
          if !(x_coord == width) {return Ok(String::from_str(&format!(
             "{}'th line of csv was {} long instead of {}", height, x_coord, width)).unwrap());}
+         height += 1;
       } else {
          break;
       }
@@ -357,7 +360,19 @@ pub async fn init_with_csv(csv_as_string: String) -> Result<String, JsValue> {
          "csv failed data-length is width times height test (width {} and height {})", width, height)).unwrap());
    }
 
-   _ = junk_current_state();
+   _ = CSV_BUFFER.replace(Some((newbuffer, width, height)));
+
+   Ok(String::from_str("success!").unwrap())
+}
+
+#[wasm_bindgen]
+pub async fn init_from_csv_buffer() -> Result<(), JsValue> {
+   let Some((newbuffer, width, height)) = CSV_BUFFER.replace(None) else {
+      return Err(JsValue::from_str("tried to load from csv buffer but it was empty"));
+   };
+
+   let (sender, receiver) = tokio::sync::oneshot::channel::<Result<(), wgpu::BufferAsyncError>>();
+   _ = INTERNAL_MESSAGE.replace(Some(receiver));
 
    let window = wgpu::web_sys::window().unwrap_throw();
    let document = window.document().unwrap_throw();
@@ -369,8 +384,8 @@ pub async fn init_with_csv(csv_as_string: String) -> Result<String, JsValue> {
       .dyn_into()
       .expect("man your canvas is bonked or somethin");
    let mut state = WgpuState::new_with(html_canvas_element, width, height)
-       .await
-       .map_err(|e| JsValue::from_str(&format!("error {}",e)))?;
+      .await
+      .map_err(|e| JsValue::from_str(&format!("error {}",e)))?;
 
    state.queue.write_buffer(
       &state.heateq.data_buffer,
@@ -386,5 +401,71 @@ pub async fn init_with_csv(csv_as_string: String) -> Result<String, JsValue> {
 
    THE_STATE.replace(WebApp::Idle(state));
 
-   Ok(String::from_str("success!").unwrap())
+   sender.send(Ok(()));
+
+   Ok(())
+}
+
+#[wasm_bindgen]
+pub async fn get_total_energy_in_one() -> Result<f32, JsValue> {
+   if let Some(receiver) = INTERNAL_MESSAGE.replace(None) {
+      let receiver_result = receiver.await;
+      match (receiver_result) {
+         Ok(Ok(())) => {},
+         Err(err) => {return Err(JsValue::from_str(
+            &format!("error at receiver in get_total_energy_in_one: {:?}", err)
+         ));},
+         _ => {return Err(JsValue::from_str("wgpu export failure"));}
+      };
+   } else {log::info!("no receiver to block on in get_total_energy_in_one, continuing")};
+
+   let globalstate = THE_STATE.replace(WebApp::Uninitialized);
+   let state: WgpuState = match globalstate {
+      WebApp::Uninitialized => {
+         log::info!("Can not do! Uninitialized");
+         return Err(JsValue::from_str("Can not do! Uninitialized"));
+      }
+      WebApp::Idle(state) => state
+   };
+
+   let mut pending_queue = state.pending_queue.replace(vec![]);
+   let mut encoder = state.device.create_command_encoder(&Default::default());
+
+   state.heateq.export_buffer.unmap();
+   let (sender,receiver) = tokio::sync::oneshot::channel();
+   encoder.copy_buffer_to_buffer(
+      &state.heateq.data_buffer,
+      0,
+      &state.heateq.export_buffer,
+      0,
+      state.heateq.data_buffer.size());
+   encoder.map_buffer_on_submit(&state.heateq.export_buffer, wgpu::MapMode::Read, ..,
+      move |result| {
+         match sender.send(result) {
+            Ok(()) => {}
+            Err(x) => log::info!("sender failed to send, with message {:?}",x)
+         }
+      });
+   pending_queue.push(encoder.finish());
+   state.queue.submit(pending_queue.into_boxed_slice());
+
+   let thedata: Vec<f32> = {
+      match state.device.poll(wgpu::PollType::wait_indefinitely()) {
+         Err(_) => {return Err(JsValue::from_str(&format!("poll failed in get_total_energy_in_one"))); }
+         Ok(_) => {}
+      };
+      _ = match receiver.await {
+         Err(_) => {return Err(JsValue::from_str(&format!("receiver failed in get_total_energy_in_one"))); }
+         Ok(_) => ()
+      };
+      let output_data = state.heateq.export_buffer.get_mapped_range(..);
+      bytemuck::cast_slice(&output_data).to_vec()
+   };
+
+   let mut the_sum: f64 = 0.0;
+   for i in thedata.iter() {the_sum += *i as f64}
+
+   _ = THE_STATE.replace(WebApp::Idle(state));
+
+   Ok(the_sum as f32)
 }

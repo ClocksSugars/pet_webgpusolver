@@ -187,7 +187,7 @@ impl HeatComputer {
       let data_buffer = device.create_buffer_init(&BufferInitDescriptor {
          label: Some("data"),
          contents: bytemuck::cast_slice(&initial_data),
-         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::STORAGE,
       });
 
       let export_buffer = device.create_buffer(&wgpu::BufferDescriptor {

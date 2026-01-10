@@ -85,6 +85,9 @@ pub async fn run_web() -> Result<(), wasm_bindgen::JsValue> {
     console_log::init_with_level(log::Level::Info).unwrap_throw();
     log::info!{"initialized log"};
 
+    let (sender, receiver) = tokio::sync::oneshot::channel::<Result<(), wgpu::BufferAsyncError>>();
+    _ = web_app::INTERNAL_MESSAGE.replace(Some(receiver));
+
     let window = wgpu::web_sys::window().unwrap_throw();
     let document = window.document().unwrap_throw();
     //let canvas = body.get_element_by_id(CANVAS_ID).unwrap_throw();
@@ -104,6 +107,8 @@ pub async fn run_web() -> Result<(), wasm_bindgen::JsValue> {
 
     console_error_panic_hook::set_once();
     web_app::THE_STATE.set(web_app::WebApp::Idle(webstate));
+
+    sender.send(Ok(()));
 
     Ok(())
 }
