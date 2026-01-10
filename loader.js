@@ -114,8 +114,6 @@ function run_compute() {
    current_N = current_N + N_add
    current_time = current_time + current_delta_t * N_add;
 
-   console.log(current_N);
-
    let receiver_response = is_receiver_ready();
    if (receiver_response) {
       //console.log(`tried to export num with receiver ${receiver_response}`)
