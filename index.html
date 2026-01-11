@@ -51,8 +51,8 @@
          <body id="wasm-example">
            <canvas id="canvas"></canvas>
            <p>
-              <b >total energy: <span id="total_energy_goes_here">0</span></b><br />
-              <b >time: <span id="total_time_goes_here">0</span></b>
+              <b>total energy: <span id="total_energy_goes_here">0</span></b><br />
+              <b>time: <span id="total_time_goes_here">0</span></b>
            </p>
            <p>
               min_T: <input type="number", id="min_T", value="0.0" required /> (how cold is max blue)
@@ -67,7 +67,7 @@
               $\Delta t$: <input type="number", id="delta_t", value="1.9073486328125e-06" required />
            </p>
            <p>
-              <button type="button" id="auto_delta_t"> Auto $\Delta t$ from $\kappa$ & $\Delta x$ / $\Delta y$ </button> with safety factor: <input type="number", id="safety_factor", value="0.5", style="width:5em" required />
+              <button type="button" id="auto_delta_t"> Auto $\Delta t$ from $\kappa$ & $\Delta x$ / $\Delta y$ </button> with safety factor: <input type="number", id="safety_factor", value="0.5", style="width:5em" required /> (if greater than 1 expect numerical instability)
            </p>
            <p>
               total timesteps: <input type="number", id="max_N", min="1", step="1", value="524288" required />
@@ -96,6 +96,9 @@
            </p>
            <p>
               <b id="message_receiver">messages from the program will appear here </b>
+           </p>
+           <p>
+              Make sure when using auto buttons for generating parameters that you also click "Send Values to GPU" when you are done.
            </p>
            <script src="./loader.js" type="module" defer></script>
       </section>
