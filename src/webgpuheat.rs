@@ -375,6 +375,9 @@ impl HeatComputer {
          // this is also where we define the steps the gpu should take. so far as
          //    i can tell, this is similar to sending an io monad to the gpu
 
+         let workgroup_quantity = (self.width * self.height).div_ceil(64) as u32;
+         let x_workgroup_quantity = self.width.div_ceil(8) as u32;
+         let y_workgroup_quantity = self.height.div_ceil(8) as u32;
          let boundary_conds_wg_quant = (self.width*2 + self.height*2).div_ceil(self.workgroup_size);
 
          for _ in 0..self.iteration_quantity {
@@ -384,23 +387,23 @@ impl HeatComputer {
 
          gputodo.set_pipeline(&self.laplacian_pipeline);
          gputodo.set_bind_group(0, &self.stage_one_bind_group, &[]);
-         gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
+         gputodo.dispatch_workgroups(x_workgroup_quantity, y_workgroup_quantity, 1);
 
          gputodo.set_pipeline(&self.iterate_pipeline);
          gputodo.set_bind_group(0, &self.stage_two_bind_group, &[]);
-         gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
+         gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
 
          gputodo.set_pipeline(&self.laplacian_pipeline);
          gputodo.set_bind_group(0, &self.stage_three_bind_group, &[]);
-         gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
+         gputodo.dispatch_workgroups(x_workgroup_quantity, y_workgroup_quantity, 1);
 
          gputodo.set_pipeline(&self.iterate_pipeline);
          gputodo.set_bind_group(0, &self.stage_four_bind_group, &[]);
-         gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
+         gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
 
          gputodo.set_pipeline(&self.buffer_move_pipeline);
          gputodo.set_bind_group(0, &self.stage_five_bind_group, &[]);
-         gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
+         gputodo.dispatch_workgroups(workgroup_quantity, 1, 1);
          }
       }
 
@@ -439,12 +442,15 @@ impl HeatComputer {
    ) {
       let mut encoder = device.create_command_encoder(&Default::default());
 
+      let x_workgroup_quantity = self.width.div_ceil(8) as u32;
+      let y_workgroup_quantity = self.height.div_ceil(8) as u32;
+
       {
          let mut gputodo = encoder.begin_compute_pass(&Default::default());
 
          gputodo.set_pipeline(&self.heat_hue_pipeline);
          gputodo.set_bind_group(0, &self.heat_hue_bind_group, &[]);
-         gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
+         gputodo.dispatch_workgroups(x_workgroup_quantity, y_workgroup_quantity, 1);
       }
 
       #[cfg(target_arch = "wasm32")]
@@ -481,9 +487,12 @@ impl HeatComputer {
    ) {
       let mut gputodo = encoder.begin_compute_pass(&Default::default());
 
+      let x_workgroup_quantity = self.width.div_ceil(8) as u32;
+      let y_workgroup_quantity = self.height.div_ceil(8) as u32;
+
       gputodo.set_pipeline(&self.heat_hue_pipeline);
       gputodo.set_bind_group(0, &self.heat_hue_bind_group, &[]);
-      gputodo.dispatch_workgroups(self.workgroup_quantity, 1, 1);
+      gputodo.dispatch_workgroups(x_workgroup_quantity, y_workgroup_quantity, 1);
    }
 
    pub fn color_to_texture(

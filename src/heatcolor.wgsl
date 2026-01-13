@@ -12,14 +12,14 @@
 
 
 @compute
-@workgroup_size(64,1,1)
+@workgroup_size(8,8,1)
 fn main(
    @builtin(global_invocation_id) gid: vec3<u32>
 ) {
 
-   if (gid.x >= width * height) {return;}
+   if ((gid.x >= width) | (gid.y >= height)) {return;}
 
-   let range = clamp((data[gid.x] - minT)/(maxT - minT), 0.0f, 1.0f);
+   let range = clamp((data[gid.x + gid.y * width] - minT)/(maxT - minT), 0.0f, 1.0f);
 
    var red: f32 = 0;
    var green: f32 = 0;
@@ -58,6 +58,5 @@ fn main(
       + (u32(0016711680.0f * blue   ) & 0x00FF0000)   // 0016711680 is 0x00FF0000
    ;
 
-   let roughj = gid.x / width;
-   rgba_out[gid.x + roughj * pad_per_line] = color;
+   rgba_out[gid.x + gid.y * (pad_per_line + width)] = color;
 }
