@@ -7,7 +7,7 @@
 @group(0) @binding(6) var<uniform> delta_t: f32;
 
 @compute// Entrypoint
-@workgroup_size(256,1,1)
+@workgroup_size(64,1,1)
 fn main(
    //we use these to get which workgroup and where inside workgroup we are
    //@builtin(workgroup_id) wid: vec3<u32>,

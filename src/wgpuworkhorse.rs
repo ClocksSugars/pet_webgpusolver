@@ -154,7 +154,7 @@ impl WgpuState {
 
 
       let adapter = instance
-         .request_adapter(&wgpu::RequestAdapterOptions//::default()).await.ok()?;
+         .request_adapter(&wgpu::RequestAdapterOptions
       {
             power_preference: wgpu::PowerPreference::default(),
             compatible_surface: Some(&surface),
