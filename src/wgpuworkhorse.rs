@@ -129,8 +129,8 @@ impl WgpuState {
       let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
           #[cfg(not(target_arch = "wasm32"))]
           backends: wgpu::Backends::PRIMARY,
-          #[cfg(target_arch = "wasm32")]
-          backends: wgpu::Backends::BROWSER_WEBGPU,
+          //#[cfg(target_arch = "wasm32")]
+          //backends: wgpu::Backends::BROWSER_WEBGPU,
           ..Default::default()
       });
 
@@ -169,10 +169,10 @@ impl WgpuState {
             label: None,
             required_features: wgpu::Features::empty(),
             experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            // WebGL doesn't support all of wgpu's features, so if
-            // we're building for the web we'll have to disable some.
             required_limits: if cfg!(target_arch = "wasm32") {
                adapter.limits()
+               // WebGL doesn't support all of wgpu's features, so if
+               // we're building for the web we'll have to disable some.
                //wgpu::Limits::downlevel_defaults()
                //wgpu::Limits::downlevel_webgl2_defaults()
             } else {
