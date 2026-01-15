@@ -41,7 +41,7 @@ fn main(
          red = 4.0f * (range - 0.5);
       }
       case 3: {
-         green = 1.0f - 4.0f * (range - 0.5);
+         green = 1.0f - 4.0f * (range - 0.75);
          red = 1.0f;
       }
       default: {
