@@ -213,3 +213,20 @@ async function do_csv_process() {
 document.getElementById("send_csv_to_gpu").addEventListener("click", (event) => {
    do_csv_process();
 })
+
+document.getElementById("over_error_threshhold").addEventListener("click", (event) => {
+   var width = document.getElementById("width_val").value;
+   var height = document.getElementById("height_val").value;
+   var kappa = document.getElementById("kappa").value;
+   document.getElementById("safety_factor").value = 1.001;
+   var newdeltat = 1.001 / (2 * kappa * (width ** 2 + height ** 2));
+   document.getElementById("delta_t").value = newdeltat;
+   document.getElementById("N_add").value = 10;
+   update_values(
+      document.getElementById("N_add").value,
+      document.getElementById("kappa").value,
+      newdeltat,
+      document.getElementById("min_T").value,
+      document.getElementById("max_T").value,
+   )
+})
