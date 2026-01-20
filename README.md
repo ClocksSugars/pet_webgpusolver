@@ -1,22 +1,5 @@
-# the plan
-## initial conditions
-probably load in a csv. prior to this begin with a circle of some constant (set as a variable) temperature in the center. We work only on a unit square \[0,1\]x\[0.1\]. Set a spatial resolution parameter and a time resolution parameter, which will initially give us a 256x256 grid, and we add generality for that later.
-
-## viewing data
-ultimately we will want to be able to display solutions in a browser, but we'll need some way to view shader outputs while testing webgpu. at first we'll output to a png.
-
-## the shader
-there are a series of tests we must go through to make sure we are doing this right and minimize sources of error when we debug for each thing that will inevitably go wrong. these steps are:
-   - make sure we can copy initial conditions in and out of buffers freely
-   - make sure we can adjust buffers with the shaders in some trivial way, say by moving them all to the left.
-   - make sure we can compute a laplacian
-
-# we did that, new plan
-## get a window open on web
-this turns out to be mostly easy
-
-## get an initial value showing on it
-to do this we'll have to set up the hsv -> rgb shader. my plan is to have this be a compute shader and we'll copy it into the texture buffer when we change it, since we arent exactly aiming for crazy frame rates; this also means we dont have to worry about interpolation stuff when the canvas is stretched, texture buffer tooling handles this for us. the new to do list is:
-   - write a heat map shader
-   - write an initialization thing for the compute pipeline
-   - try to crunch the code down a little with some abstractions
+# My pet WGPU heat equation solver
+## Building and Running
+Compile with [https://drager.github.io/wasm-pack/](wasm-pack) using the command `wasm-pack build --target web`. If running locally, load using some kind of local web server such as `python3 -m http.server`. Check [https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API#browser_compatibility](your browser's compatibility) and if running linux then you'll want to run your browser with [https://github.com/gpuweb/gpuweb/wiki/Implementation-Status#implementation-status](these flags) in order to enable webgpu. If you run on desktop, run in a console and keep the window selected while typing for text to appear in the console (desktop use lacks many of the features of the browser version and exists in large part for debugging).
+## Details and Numerical Considerations
+See my write-up at [https://clockssugars.blog/articles/0126-heateq/](clockssugars.blog) for the explanation of the program works loosely in the form of a WGPU tutorial, along with a derivation of the heat equation and our numerical method, and a derivation of the stability regime and error characteristics of the method in the appendix.
