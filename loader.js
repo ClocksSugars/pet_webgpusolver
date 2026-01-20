@@ -23,7 +23,8 @@ import {
    give_current_width,
    give_current_height,
    init_from_csv_buffer,
-   get_total_energy_in_one
+   get_total_energy_in_one,
+   writeStateAsCSV
 } from "./pkg/pet_webgpusolver.js";
 
 async function init_energy() {
@@ -229,4 +230,13 @@ document.getElementById("over_error_threshhold").addEventListener("click", (even
       document.getElementById("min_T").value,
       document.getElementById("max_T").value,
    )
+})
+
+document.getElementById("export_csv").addEventListener("click", async (event) => {
+   const the_data = await writeStateAsCSV();
+   var link = document.createElement('a');
+   link.download = 'heateq_state.csv';
+   var blob = new Blob([the_data], { type: 'text/plain' });
+   link.href = window.URL.createObjectURL(blob);
+   link.click();
 })
