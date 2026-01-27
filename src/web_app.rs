@@ -428,7 +428,7 @@ pub async fn get_total_energy_in_one() -> Result<f32, JsValue> {
       WebApp::Idle(state) => state
    };
 
-   let mut pending_queue = state.pending_queue.replace(vec![]);
+   let mut pending_queue = state.pending_queue.replace(Vec::new());
    let mut encoder = state.device.create_command_encoder(&Default::default());
 
    state.heateq.export_buffer.unmap();
@@ -468,4 +468,81 @@ pub async fn get_total_energy_in_one() -> Result<f32, JsValue> {
    _ = THE_STATE.replace(WebApp::Idle(state));
 
    Ok(the_sum as f32)
+}
+
+#[wasm_bindgen]
+pub async fn writeStateAsCSV() -> Result<String,JsValue> {
+   if let Some(receiver) = INTERNAL_MESSAGE.replace(None) {
+      let receiver_result = receiver.await;
+      match (receiver_result) {
+         Ok(Ok(())) => {},
+         Err(err) => {return Err(JsValue::from_str(
+            &format!("error at receiver in get_total_energy_in_one: {:?}", err)
+         ));},
+         _ => {return Err(JsValue::from_str("wgpu export failure"));}
+      };
+   } else {log::info!("no receiver to block on in get_total_energy_in_one, continuing")};
+
+   let globalstate = THE_STATE.replace(WebApp::Uninitialized);
+   let state: WgpuState = match globalstate {
+      WebApp::Uninitialized => {
+         log::info!("Can not do! Uninitialized");
+         return Err(JsValue::from_str("Can not do! Uninitialized"));
+      }
+      WebApp::Idle(state) => state
+   };
+
+   let mut pending_queue = state.pending_queue.replace(Vec::new());
+   let mut encoder = state.device.create_command_encoder(&Default::default());
+
+   state.heateq.export_buffer.unmap();
+   let (sender,receiver) = tokio::sync::oneshot::channel();
+   encoder.copy_buffer_to_buffer(
+      &state.heateq.data_buffer,
+      0,
+      &state.heateq.export_buffer,
+      0,
+      state.heateq.data_buffer.size());
+   encoder.map_buffer_on_submit(&state.heateq.export_buffer, wgpu::MapMode::Read, ..,
+      move |result| {
+         match sender.send(result) {
+            Ok(()) => {}
+            Err(x) => log::info!("sender failed to send, with message {:?}",x)
+         }
+      });
+   pending_queue.push(encoder.finish());
+   state.queue.submit(pending_queue.into_boxed_slice());
+
+   let mut thedata: Vec<f32> = {
+      match state.device.poll(wgpu::PollType::wait_indefinitely()) {
+         Err(_) => {return Err(JsValue::from_str(&format!("poll failed in get_total_energy_in_one"))); }
+         Ok(_) => {}
+      };
+      _ = match receiver.await {
+         Err(_) => {return Err(JsValue::from_str(&format!("receiver failed in get_total_energy_in_one"))); }
+         Ok(_) => ()
+      };
+      let output_data = state.heateq.export_buffer.get_mapped_range(..);
+      bytemuck::cast_slice(&output_data).to_vec()
+   };
+   let width = state.heateq.width;
+   let height = state.heateq.height;
+   _ = THE_STATE.replace(WebApp::Idle(state));
+
+   let mut thewriter = csv::WriterBuilder::new()
+      .delimiter(b',')
+      .has_headers(false)
+      .from_writer(vec![]);
+   for j in 0..height {
+      thewriter.write_record(
+         thedata.drain(0..(width as usize)).map(|f| format!("{}",f))
+      ).map_err(|e| {JsValue::from_str(&format!("writer failed on line {}", j))})?
+   }
+   let innerwriter = thewriter.into_inner();
+   let finalstr = match innerwriter {
+      Ok(thevec) => String::from_utf8(thevec).map_err(|e| JsValue::from_str("Could not convert bytestring to utf8 string")),
+      _ => {return Err(JsValue::from_str("Could not convert csv-writer into bytestring"));}
+   };
+
+   finalstr
 }
