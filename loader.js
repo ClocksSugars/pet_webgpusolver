@@ -203,7 +203,7 @@ async function do_csv_process() {
          document.getElementById("width_val").value = width;
          document.getElementById("height_val").value = height;
          document.getElementById("delta_x").value = 1.0 / width;
-         document.getElementById("height_val").value = 1.0 / height;
+         document.getElementById("delta_y").value = 1.0 / height;
       } else {
          showMessage(result);
       };
